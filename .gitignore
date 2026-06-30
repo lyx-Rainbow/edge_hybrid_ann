@@ -20,6 +20,7 @@ __pycache__/
 
 # ===== 各索引方法的 description.md 文档 =====
 **/description.md
+!1_Data/description.md
 
 # ===== 缓存目录 =====
 .cache/
