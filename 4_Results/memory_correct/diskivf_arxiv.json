@@ -1,0 +1,7 @@
+{
+  "dataset": "arxiv",
+  "index": "DiskIVF",
+  "rss_peak_query_mb": 231.0,
+  "index_memory_mb": 0.3759765625,
+  "note": "diagnostic measurement after cleanup"
+}

@@ -1,0 +1,31 @@
+{
+  "dataset": "yfcc100m",
+  "index": "Curator",
+  "n_vectors": 800000,
+  "d": 192,
+  "build": {
+    "nlist": 32,
+    "bf_capacity": 1000,
+    "bf_error_rate": 0.001,
+    "max_sl_size": 256,
+    "clus_niter": 20,
+    "max_leaf_size": 128,
+    "pq_M": 64,
+    "pq_nbits": 8,
+    "pq_enabled": true,
+    "pq_use_adc_rerank": true,
+    "pq_rerank_topk_factor": 4,
+    "use_flash_storage": true
+  },
+  "phases": {
+    "train": 4.459631200996228,
+    "create": 8.763741033006227,
+    "grant_access": 10.049225789000047,
+    "pq_train_encode": 42.40159958397271,
+    "flash_write": 1.029176287993323
+  },
+  "total_build_s": 66.70337389496854,
+  "index_memory_mb": 242.33409118652344,
+  "rss_before_build_mb": 1079.78515625,
+  "rss_after_build_mb": 1658.37890625
+}

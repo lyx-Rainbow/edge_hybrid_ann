@@ -1,0 +1,269 @@
+#include <faiss/MultiTenantIndexHNSW.h>
+#include <faiss/impl/FaissAssert.h>
+#include <limits>
+
+namespace faiss {
+
+MultiTenantIndexHNSW::MultiTenantIndexHNSW(
+        size_t d,
+        size_t M,
+        size_t ef_construction,
+        size_t ef,
+        size_t max_elements)
+        : d(d),
+          M(M),
+          ef_construction(ef_construction),
+          ef(ef),
+          max_elements(max_elements) {
+    space = new hnswlib::L2Space(d);
+    index = new hnswlib::HierarchicalNSW<float>(
+            space,
+            max_elements,
+            M,
+            ef_construction,
+            100,
+            /*allow_replace_deleted=*/true);
+    index->setEf(ef);
+}
+
+MultiTenantIndexHNSW::~MultiTenantIndexHNSW() {
+    delete space;
+    delete index;
+}
+
+void MultiTenantIndexHNSW::train(idx_t n, const float* x, tid_t tid) {
+    FAISS_THROW_MSG("HNSW does not support training");
+}
+
+void MultiTenantIndexHNSW::add_vector_with_ids(
+        idx_t n,
+        const float* x,
+        const idx_t* xids) {
+    for (size_t i = 0; i < n; i++) {
+        idx_t label = xids[i];
+        index->addPoint((void*)(x + i * d), label, /*replace_deleted=*/true);
+        access_map.emplace(label, std::unordered_set<tid_t>{});
+    }
+}
+
+void MultiTenantIndexHNSW::grant_access(idx_t xid, tid_t tid) {
+    auto it = access_map.find(xid);
+    FAISS_THROW_IF_NOT_MSG(it != access_map.end(), "Vector not found");
+    it->second.insert(tid);
+}
+
+bool MultiTenantIndexHNSW::remove_vector(idx_t xid) {
+    FAISS_THROW_IF_NOT_MSG(
+            access_map.find(xid) != access_map.end(), "Vector not found");
+
+    access_map.erase(xid);
+    index->markDelete(xid);
+    return true;
+}
+
+bool MultiTenantIndexHNSW::revoke_access(idx_t xid, tid_t tid) {
+    auto it = access_map.find(xid);
+    FAISS_THROW_IF_NOT_MSG(it != access_map.end(), "Vector not found");
+    return it->second.erase(tid);
+}
+
+void MultiTenantIndexHNSW::search(
+        idx_t n,
+        const float* x,
+        idx_t k,
+        tid_t tid,
+        float* distances,
+        idx_t* labels,
+        const SearchParameters* params) const {
+    PermissionCheck checker(tid, access_map);
+    size_t num_threads =
+            getenv("OMP_NUM_THREADS") ? atoi(getenv("OMP_NUM_THREADS")) : 1;
+
+    index->setEf(ef);
+
+    ParallelFor(0, n, num_threads, [&](size_t i, size_t threadId) {
+        long n_dists_before = index->metric_distance_computations.load();
+        std::vector<std::pair<float, hnswlib::labeltype>> result =
+                index->searchKnnCloserFirst((void*)(x + i * d), k, &checker);
+        long n_dists_after = index->metric_distance_computations.load();
+        this->n_dists = n_dists_after - n_dists_before;
+
+        size_t n_res = std::min(static_cast<size_t>(k), result.size());
+        for (size_t j = 0; j < n_res; j++) {
+            distances[i * k + j] = result[j].first;
+            labels[i * k + j] = result[j].second;
+        }
+        for (size_t j = n_res; j < static_cast<size_t>(k); j++) {
+            distances[i * k + j] = std::numeric_limits<float>::max();
+            labels[i * k + j] = -1;
+        }
+    });
+}
+
+void MultiTenantIndexHNSW::search(
+        idx_t n,
+        const float* x,
+        idx_t k,
+        const std::string& filter,
+        float* distances,
+        idx_t* labels,
+        const SearchParameters* params) const {
+    ComplexPredicateCheck checker(filter, access_map);
+    size_t num_threads =
+            getenv("OMP_NUM_THREADS") ? atoi(getenv("OMP_NUM_THREADS")) : 1;
+
+    index->setEf(ef);
+
+    ParallelFor(0, n, num_threads, [&](size_t i, size_t threadId) {
+        std::vector<std::pair<float, hnswlib::labeltype>> result =
+                index->searchKnnCloserFirst((void*)(x + i * d), k, &checker);
+
+        size_t n_res = std::min(static_cast<size_t>(k), result.size());
+        for (size_t j = 0; j < n_res; j++) {
+            distances[i * k + j] = result[j].first;
+            labels[i * k + j] = result[j].second;
+        }
+        for (size_t j = n_res; j < static_cast<size_t>(k); j++) {
+            distances[i * k + j] = std::numeric_limits<float>::max();
+            labels[i * k + j] = -1;
+        }
+    });
+}
+
+#include <limits>
+
+void MultiTenantIndexHNSW::add_vector(idx_t n, const float* x) {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+void MultiTenantIndexHNSW::range_search(
+        idx_t n,
+        const float* x,
+        float radius,
+        tid_t tid,
+        RangeSearchResult* result,
+        const SearchParameters* params) const {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+void MultiTenantIndexHNSW::assign(
+        idx_t n,
+        const float* x,
+        tid_t tid,
+        idx_t* labels,
+        idx_t k) const {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+void MultiTenantIndexHNSW::reset() {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+void MultiTenantIndexHNSW::reconstruct(idx_t key, float* recons) const {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+void MultiTenantIndexHNSW::reconstruct_batch(
+        idx_t n,
+        const idx_t* keys,
+        float* recons) const {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+void MultiTenantIndexHNSW::reconstruct_n(idx_t i0, idx_t ni, float* recons)
+        const {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+void MultiTenantIndexHNSW::search_and_reconstruct(
+        idx_t n,
+        const float* x,
+        idx_t k,
+        tid_t tid,
+        float* distances,
+        idx_t* labels,
+        float* recons,
+        const SearchParameters* params) const {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+void MultiTenantIndexHNSW::compute_residual(
+        const float* x,
+        float* residual,
+        idx_t key) const {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+void MultiTenantIndexHNSW::compute_residual_n(
+        idx_t n,
+        const float* xs,
+        float* residuals,
+        const idx_t* keys) const {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+DistanceComputer* MultiTenantIndexHNSW::get_distance_computer() const {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+size_t MultiTenantIndexHNSW::sa_code_size() const {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+void MultiTenantIndexHNSW::sa_encode(idx_t n, const float* x, uint8_t* bytes)
+        const {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+void MultiTenantIndexHNSW::sa_decode(idx_t n, const uint8_t* bytes, float* x)
+        const {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+void MultiTenantIndexHNSW::merge_from(
+        MultiTenantIndex& otherIndex,
+        idx_t add_id) {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+void MultiTenantIndexHNSW::check_compatible_for_merge(
+        const MultiTenantIndex& otherIndex) const {
+    FAISS_THROW_MSG("Not implemented");
+}
+
+size_t MultiTenantIndexHNSW::get_total_memory_bytes() const {
+    size_t total = 0;
+    size_t n = index->getCurrentElementCount();
+    size_t max_n = index->getMaxElements();
+
+    // Level-0 data block (pre-allocated for max_elements)
+    size_t size_links_level0 = (M * 2) * sizeof(hnswlib::tableint)
+                               + sizeof(hnswlib::linklistsizeint);
+    size_t size_per_element = size_links_level0 + d * sizeof(float)
+                              + sizeof(hnswlib::labeltype);
+    total += max_n * size_per_element;
+
+    // linkLists_ pointer array (pre-allocated)
+    total += max_n * sizeof(void*);
+
+    // Higher-level link lists: only allocated for elements that have level>0
+    // Approximately: n elements × avg 2 levels
+    size_t size_links_per_element = M * sizeof(hnswlib::tableint)
+                                    + sizeof(hnswlib::linklistsizeint);
+    total += n * 2 * size_links_per_element;
+
+    // element_levels_ vector
+    total += max_n * sizeof(int);
+
+    // visited_nodes_pool_
+    total += max_n * sizeof(hnswlib::tableint);
+
+    // Access map: per-vector tenant sets
+    for (const auto& [label, tid_set] : access_map) {
+        total += sizeof(label) + sizeof(tid_t) * tid_set.size();
+    }
+
+    return total;
+}
+
+} // namespace faiss

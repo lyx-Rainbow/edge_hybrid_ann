@@ -1,0 +1,8 @@
+{
+  "dataset": "arxiv",
+  "d": 384,
+  "n_labels": 100,
+  "k": 10,
+  "n_queries": 500,
+  "num_warmup": 20
+}

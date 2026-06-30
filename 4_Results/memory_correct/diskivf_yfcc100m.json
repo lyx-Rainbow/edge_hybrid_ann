@@ -1,0 +1,7 @@
+{
+  "dataset": "yfcc100m",
+  "index": "DiskIVF",
+  "rss_peak_query_mb": 127.29296875,
+  "index_memory_mb": 0.09423828125,
+  "note": "diagnostic measurement after cleanup"
+}

@@ -1,0 +1,43 @@
+{
+  "dataset": "arxiv",
+  "index": "PreFiltering",
+  "k": 10,
+  "build_time_s": 0.37658297999587376,
+  "index_memory_mb": 2354.1441192626953,
+  "rss_after_build_mb": 2594.8984375,
+  "peak_rss_build_mb": 4720.7109375,
+  "n_combinations": 1,
+  "sweep_results": [
+    {
+      "params": {},
+      "latency_ms": 51.21790317809791,
+      "p50_ms": 51.331757502339315,
+      "p95_ms": 91.04291684197959,
+      "qps": 19.524422866799934,
+      "recall": 1.0,
+      "per_bucket": {
+        "[0.0037, 0.0206)": {
+          "count": 125,
+          "avg_latency_ms": 13.359429408214055,
+          "avg_recall": 1.0
+        },
+        "[0.0206, 0.0375)": {
+          "count": 125,
+          "avg_latency_ms": 42.05502039124258,
+          "avg_recall": 1.0
+        },
+        "[0.0375, 0.0544)": {
+          "count": 125,
+          "avg_latency_ms": 62.43209384044167,
+          "avg_recall": 1.0
+        },
+        "[0.0544, 0.0713)": {
+          "count": 125,
+          "avg_latency_ms": 87.02506907249335,
+          "avg_recall": 1.0
+        }
+      },
+      "rss_peak_query_mb": 2657.08984375
+    }
+  ]
+}

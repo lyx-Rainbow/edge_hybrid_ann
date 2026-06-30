@@ -1,0 +1,40 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ===== 数据集文件 (Dataset files, ~27GB) =====
+# 排除 1_Data 下的所有数据文件，仅保留 Python 脚本
+1_Data/*
+!1_Data/*.py
+
+# ===== 数据 flush 到外存中生成的文件 (Disk data flushed to external storage) =====
+4_Results/*/disk_data/
+4_Results/*/disk_data_sweep/
+4_Results/*/disk_data_build_sweep/
+4_Results/*/disk_data_memprof/
+
+# ===== 顶层大文件 =====
+/curator_flash_20353.bin
+
+# ===== 各索引方法的 description.md 文档 =====
+**/description.md
+
+# ===== 缓存目录 =====
+.cache/
+**/.cache/
+
+# ===== 日志 =====
+logs/
+
+# ===== IDE / Editor =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== OS 文件 =====
+.DS_Store
+Thumbs.db

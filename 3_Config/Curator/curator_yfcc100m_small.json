@@ -1,0 +1,30 @@
+{
+  "dataset": "yfcc100m_small",
+  "d": 192,
+  "n_labels": 1000,
+  "build": {
+    "nlist": 32,
+    "bf_capacity": 1000,
+    "bf_error_rate": 0.001,
+    "max_sl_size": 256,
+    "clus_niter": 20,
+    "max_leaf_size": 128,
+    "pq_M": 64,
+    "pq_nbits": 8,
+    "pq_enabled": true,
+    "pq_use_adc_rerank": true,
+    "pq_rerank_topk_factor": 4,
+    "use_flash_storage": true
+  },
+  "search": {
+    "variance_boost": 0.2,
+    "search_ef": 1024,
+    "beam_size": 4,
+    "use_temp_index_caching": true
+  },
+  "benchmark": {
+    "k": 10,
+    "n_queries": 1000,
+    "num_warmup": 20
+  }
+}

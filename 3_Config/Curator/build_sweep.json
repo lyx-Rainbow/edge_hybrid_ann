@@ -1,0 +1,7 @@
+{
+  "_comment": "Build-parameter sweep: tests index memory / build time without queries.",
+  "pq_M": [8, 16, 32, 64],
+  "pq_nbits": [4, 8],
+  "max_sl_size": [256],
+  "use_flash_storage": [true]
+}

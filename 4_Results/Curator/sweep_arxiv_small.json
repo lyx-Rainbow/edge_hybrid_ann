@@ -1,0 +1,271 @@
+{
+  "dataset": "arxiv_small",
+  "base_config": {
+    "dataset": "arxiv_small",
+    "d": 384,
+    "n_labels": 100,
+    "build": {
+      "nlist": 32,
+      "bf_capacity": 1000,
+      "bf_error_rate": 0.001,
+      "max_sl_size": 256,
+      "clus_niter": 20,
+      "max_leaf_size": 128,
+      "pq_M": 128,
+      "pq_nbits": 8,
+      "pq_enabled": true,
+      "pq_use_adc_rerank": true,
+      "pq_rerank_topk_factor": 4,
+      "use_flash_storage": true
+    },
+    "search": {
+      "variance_boost": 0.4,
+      "search_ef": 1024,
+      "beam_size": 4,
+      "use_temp_index_caching": true
+    },
+    "benchmark": {
+      "k": 10,
+      "n_queries": 1000,
+      "num_warmup": 20
+    }
+  },
+  "sweep_config": {
+    "search_ef": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32,
+      64,
+      128,
+      256,
+      512,
+      1024,
+      2048,
+      4096
+    ],
+    "beam_size": [
+      4
+    ],
+    "variance_boost": [
+      0.2
+    ]
+  },
+  "build_time_s": 15.239736795425415,
+  "index_memory_mb": 14.92835807800293,
+  "rss_after_build_mb": 175.171875,
+  "peak_rss_build_mb": 270.82421875,
+  "n_combinations": 13,
+  "sweep_results": [
+    {
+      "params": {
+        "variance_boost": 0.2,
+        "search_ef": 1,
+        "beam_size": 4,
+        "use_temp_index_caching": true
+      },
+      "latency_ms": 1.2477445602416992,
+      "p50_ms": 0.6536245346069336,
+      "p95_ms": 1.8229365348815865,
+      "p99_ms": 17.083332538604736,
+      "qps": 801.4460907016827,
+      "recall": 0.0984,
+      "min_recall": 0.0,
+      "empty_results": 0
+    },
+    {
+      "params": {
+        "variance_boost": 0.2,
+        "search_ef": 2,
+        "beam_size": 4,
+        "use_temp_index_caching": true
+      },
+      "latency_ms": 0.7969770431518555,
+      "p50_ms": 0.7129907608032227,
+      "p95_ms": 1.329410076141357,
+      "p99_ms": 2.1669125556945796,
+      "qps": 1254.7412859537797,
+      "recall": 0.19460000000000002,
+      "min_recall": 0.0,
+      "empty_results": 0
+    },
+    {
+      "params": {
+        "variance_boost": 0.2,
+        "search_ef": 4,
+        "beam_size": 4,
+        "use_temp_index_caching": true
+      },
+      "latency_ms": 2.1543197631835938,
+      "p50_ms": 1.3693571090698242,
+      "p95_ms": 3.8991212844848597,
+      "p99_ms": 21.743383407592756,
+      "qps": 464.1836449210436,
+      "recall": 0.37520000000000003,
+      "min_recall": 0.0,
+      "empty_results": 0
+    },
+    {
+      "params": {
+        "variance_boost": 0.2,
+        "search_ef": 8,
+        "beam_size": 4,
+        "use_temp_index_caching": true
+      },
+      "latency_ms": 3.94807767868042,
+      "p50_ms": 1.7647743225097656,
+      "p95_ms": 13.824558258056609,
+      "p99_ms": 40.99622011184692,
+      "qps": 253.28782293215505,
+      "recall": 0.645,
+      "min_recall": 0.1,
+      "empty_results": 0
+    },
+    {
+      "params": {
+        "variance_boost": 0.2,
+        "search_ef": 16,
+        "beam_size": 4,
+        "use_temp_index_caching": true
+      },
+      "latency_ms": 3.7649364471435547,
+      "p50_ms": 3.569960594177246,
+      "p95_ms": 16.84579849243163,
+      "p99_ms": 38.44907522201535,
+      "qps": 265.60873311917305,
+      "recall": 0.7944,
+      "min_recall": 0.1,
+      "empty_results": 0
+    },
+    {
+      "params": {
+        "variance_boost": 0.2,
+        "search_ef": 32,
+        "beam_size": 4,
+        "use_temp_index_caching": true
+      },
+      "latency_ms": 9.543733596801758,
+      "p50_ms": 4.9877166748046875,
+      "p95_ms": 33.674061298370326,
+      "p99_ms": 71.75716400146483,
+      "qps": 104.78079567676893,
+      "recall": 0.8458000000000001,
+      "min_recall": 0.1,
+      "empty_results": 0
+    },
+    {
+      "params": {
+        "variance_boost": 0.2,
+        "search_ef": 64,
+        "beam_size": 4,
+        "use_temp_index_caching": true
+      },
+      "latency_ms": 15.030190467834473,
+      "p50_ms": 6.65283203125,
+      "p95_ms": 54.500710964202874,
+      "p99_ms": 120.02309560775751,
+      "qps": 66.53275633067067,
+      "recall": 0.8892,
+      "min_recall": 0.1,
+      "empty_results": 0
+    },
+    {
+      "params": {
+        "variance_boost": 0.2,
+        "search_ef": 128,
+        "beam_size": 4,
+        "use_temp_index_caching": true
+      },
+      "latency_ms": 14.47521448135376,
+      "p50_ms": 6.745576858520508,
+      "p95_ms": 60.478627681732135,
+      "p99_ms": 112.78752326965326,
+      "qps": 69.08360503315163,
+      "recall": 0.9312,
+      "min_recall": 0.1,
+      "empty_results": 0
+    },
+    {
+      "params": {
+        "variance_boost": 0.2,
+        "search_ef": 256,
+        "beam_size": 4,
+        "use_temp_index_caching": true
+      },
+      "latency_ms": 14.914254665374756,
+      "p50_ms": 7.600665092468262,
+      "p95_ms": 59.3218207359314,
+      "p99_ms": 137.47213840484616,
+      "qps": 67.04994801527835,
+      "recall": 0.967,
+      "min_recall": 0.4,
+      "empty_results": 0
+    },
+    {
+      "params": {
+        "variance_boost": 0.2,
+        "search_ef": 512,
+        "beam_size": 4,
+        "use_temp_index_caching": true
+      },
+      "latency_ms": 14.766651630401611,
+      "p50_ms": 8.768200874328613,
+      "p95_ms": 61.95267438888549,
+      "p99_ms": 125.1192975044249,
+      "qps": 67.7201592499953,
+      "recall": 0.9897999999999999,
+      "min_recall": 0.7,
+      "empty_results": 0
+    },
+    {
+      "params": {
+        "variance_boost": 0.2,
+        "search_ef": 1024,
+        "beam_size": 4,
+        "use_temp_index_caching": true
+      },
+      "latency_ms": 22.664312839508057,
+      "p50_ms": 13.01264762878418,
+      "p95_ms": 66.22875928878767,
+      "p99_ms": 127.8532338142393,
+      "qps": 44.122228945623114,
+      "recall": 0.998,
+      "min_recall": 0.8,
+      "empty_results": 0
+    },
+    {
+      "params": {
+        "variance_boost": 0.2,
+        "search_ef": 2048,
+        "beam_size": 4,
+        "use_temp_index_caching": true
+      },
+      "latency_ms": 20.685309410095215,
+      "p50_ms": 13.677716255187988,
+      "p95_ms": 62.062954902648876,
+      "p99_ms": 125.20861625671387,
+      "qps": 48.343487649837236,
+      "recall": 1.0,
+      "min_recall": 1.0,
+      "empty_results": 0
+    },
+    {
+      "params": {
+        "variance_boost": 0.2,
+        "search_ef": 4096,
+        "beam_size": 4,
+        "use_temp_index_caching": true
+      },
+      "latency_ms": 24.24445629119873,
+      "p50_ms": 17.17674732208252,
+      "p95_ms": 84.96854305267307,
+      "p99_ms": 146.99965715408325,
+      "qps": 41.24654263181072,
+      "recall": 1.0,
+      "min_recall": 1.0,
+      "empty_results": 0
+    }
+  ]
+}

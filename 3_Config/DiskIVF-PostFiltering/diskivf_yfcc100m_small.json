@@ -1,0 +1,10 @@
+{
+  "dataset": "yfcc100m_small",
+  "d": 192,
+  "n_labels": 1000,
+  "nlist": 64,
+  "nprobe": 16,
+  "k": 10,
+  "n_queries": 1000,
+  "num_warmup": 20
+}

@@ -1,0 +1,415 @@
+{
+  "dataset": "yfcc100m_small",
+  "index": "PreFiltering",
+  "k": 10,
+  "train_size": 50000,
+  "n_sl_queries": 500,
+  "n_cp_filters": 50,
+  "n_cp_queries": 100,
+  "build_time_s": 0.05603599548339844,
+  "index_memory_mb": 39.17364501953125,
+  "rss_after_load_mb": 98.40625,
+  "rss_after_build_mb": 107.90625,
+  "peak_rss_build_mb": 107.90625,
+  "single_label": {
+    "avg_latency_ms": 0.9787263870239258,
+    "p50_latency_ms": 0.8878707885742188,
+    "p95_latency_ms": 2.2586107254028285,
+    "qps": 1021.7360165804482,
+    "avg_recall": 1.0,
+    "min_recall": 1.0,
+    "empty": 0,
+    "rss_before_mb": 119.21875,
+    "rss_after_mb": 124.75390625,
+    "peak_rss_mb": 130.08984375,
+    "per_bucket": {
+      "[0.0004, 0.0403)": {
+        "count": 99,
+        "avg_latency_ms": 0.23729150945490057,
+        "qps": 4214.225794665692,
+        "avg_recall": 1.0
+      },
+      "[0.0403, 0.0803)": {
+        "count": 97,
+        "avg_latency_ms": 0.8610425536165532,
+        "qps": 1161.3827862511525,
+        "avg_recall": 1.0
+      },
+      "[0.0803, 0.1202)": {
+        "count": 97,
+        "avg_latency_ms": 1.251768820064584,
+        "qps": 798.8695548019848,
+        "avg_recall": 1.0
+      },
+      "[0.1202, 0.1601)": {
+        "count": 94,
+        "avg_latency_ms": 1.9544363021850586,
+        "qps": 511.65648063433974,
+        "avg_recall": 1.0
+      },
+      "overflow": {
+        "count": 113,
+        "avg_latency_ms": 0.6832886586147072,
+        "qps": 1463.510314992481,
+        "avg_recall": 1.0
+      }
+    }
+  },
+  "complex_predicate": {
+    "total_time_s": 180.91277432441711,
+    "avg_recall": 1.0,
+    "avg_latency_ms": 36.14058604240417,
+    "per_filter": {
+      "AND 10 511": {
+        "selectivity": 8e-05,
+        "avg_latency_ms": 29.072060585021973,
+        "qps": 34.39728660015257,
+        "avg_recall": 1.0,
+        "time_s": 2.910649061203003
+      },
+      "AND 119 NOT 320": {
+        "selectivity": 0.00672,
+        "avg_latency_ms": 23.47994565963745,
+        "qps": 42.589536385470524,
+        "avg_recall": 1.0,
+        "time_s": 2.351818561553955
+      },
+      "AND 141 707": {
+        "selectivity": 0.0,
+        "avg_latency_ms": 29.70426321029663,
+        "qps": 33.665201285092365,
+        "avg_recall": 1.0,
+        "time_s": 2.975130081176758
+      },
+      "AND 15 NOT 95": {
+        "selectivity": 0.00174,
+        "avg_latency_ms": 34.70421552658081,
+        "qps": 28.814943223081226,
+        "avg_recall": 1.0,
+        "time_s": 3.474703311920166
+      },
+      "AND 16 234": {
+        "selectivity": 2e-05,
+        "avg_latency_ms": 29.497008323669434,
+        "qps": 33.90174315398504,
+        "avg_recall": 1.0,
+        "time_s": 2.95296573638916
+      },
+      "AND 174 746": {
+        "selectivity": 4e-05,
+        "avg_latency_ms": 29.996929168701172,
+        "qps": 33.336745717405,
+        "avg_recall": 1.0,
+        "time_s": 3.003201484680176
+      },
+      "AND 300 458": {
+        "selectivity": 0.00032,
+        "avg_latency_ms": 29.951016902923584,
+        "qps": 33.387848006669444,
+        "avg_recall": 1.0,
+        "time_s": 2.9986684322357178
+      },
+      "AND 308 874": {
+        "selectivity": 4e-05,
+        "avg_latency_ms": 29.933390617370605,
+        "qps": 33.40750845043566,
+        "avg_recall": 1.0,
+        "time_s": 2.9966468811035156
+      },
+      "AND 348 391": {
+        "selectivity": 6e-05,
+        "avg_latency_ms": 30.190119743347168,
+        "qps": 33.12341946640886,
+        "avg_recall": 1.0,
+        "time_s": 3.022446870803833
+      },
+      "AND 438 512": {
+        "selectivity": 0.0,
+        "avg_latency_ms": 29.999489784240723,
+        "qps": 33.33390024937418,
+        "avg_recall": 1.0,
+        "time_s": 3.0046274662017822
+      },
+      "AND 441 NOT 258": {
+        "selectivity": 0.00414,
+        "avg_latency_ms": 35.334317684173584,
+        "qps": 28.301098352548774,
+        "avg_recall": 1.0,
+        "time_s": 3.537548780441284
+      },
+      "AND 45 543": {
+        "selectivity": 4e-05,
+        "avg_latency_ms": 17.61542797088623,
+        "qps": 56.768419231865536,
+        "avg_recall": 1.0,
+        "time_s": 1.765000581741333
+      },
+      "AND 485 NOT 737": {
+        "selectivity": 0.01462,
+        "avg_latency_ms": 35.41775465011597,
+        "qps": 28.234426769251048,
+        "avg_recall": 1.0,
+        "time_s": 3.54569149017334
+      },
+      "AND 579 NOT 115": {
+        "selectivity": 0.00622,
+        "avg_latency_ms": 35.645599365234375,
+        "qps": 28.05395386268391,
+        "avg_recall": 1.0,
+        "time_s": 3.568363904953003
+      },
+      "AND 595 NOT 200": {
+        "selectivity": 0.00682,
+        "avg_latency_ms": 35.65065860748291,
+        "qps": 28.049972681012534,
+        "avg_recall": 1.0,
+        "time_s": 3.569065809249878
+      },
+      "AND 668 NOT 38": {
+        "selectivity": 0.00556,
+        "avg_latency_ms": 35.335681438446045,
+        "qps": 28.30000609276426,
+        "avg_recall": 1.0,
+        "time_s": 3.5375287532806396
+      },
+      "AND 773 467": {
+        "selectivity": 0.0001,
+        "avg_latency_ms": 29.441020488739014,
+        "qps": 33.966213921915276,
+        "avg_recall": 1.0,
+        "time_s": 2.94765567779541
+      },
+      "AND 810 NOT 35": {
+        "selectivity": 0.02872,
+        "avg_latency_ms": 36.30157709121704,
+        "qps": 27.547012557808248,
+        "avg_recall": 1.0,
+        "time_s": 3.6340272426605225
+      },
+      "AND 835 NOT 613": {
+        "selectivity": 0.0084,
+        "avg_latency_ms": 35.53312063217163,
+        "qps": 28.1427575796594,
+        "avg_recall": 1.0,
+        "time_s": 3.557234287261963
+      },
+      "AND 929 NOT 807": {
+        "selectivity": 0.00678,
+        "avg_latency_ms": 35.825674533843994,
+        "qps": 27.912942687382326,
+        "avg_recall": 1.0,
+        "time_s": 3.586451292037964
+      },
+      "NOT 21": {
+        "selectivity": 0.99552,
+        "avg_latency_ms": 34.727489948272705,
+        "qps": 28.79563140006721,
+        "avg_recall": 1.0,
+        "time_s": 3.478048801422119
+      },
+      "NOT 25": {
+        "selectivity": 0.98892,
+        "avg_latency_ms": 47.087719440460205,
+        "qps": 21.236959697409944,
+        "avg_recall": 1.0,
+        "time_s": 4.7140703201293945
+      },
+      "NOT 285": {
+        "selectivity": 0.99574,
+        "avg_latency_ms": 46.9489049911499,
+        "qps": 21.29975129746913,
+        "avg_recall": 1.0,
+        "time_s": 4.700344085693359
+      },
+      "NOT 290": {
+        "selectivity": 0.99106,
+        "avg_latency_ms": 47.140023708343506,
+        "qps": 21.213396204189984,
+        "avg_recall": 1.0,
+        "time_s": 4.719399690628052
+      },
+      "NOT 517": {
+        "selectivity": 0.9968,
+        "avg_latency_ms": 46.98392868041992,
+        "qps": 21.283873615633592,
+        "avg_recall": 1.0,
+        "time_s": 4.703884601593018
+      },
+      "NOT 521": {
+        "selectivity": 0.98988,
+        "avg_latency_ms": 47.470057010650635,
+        "qps": 21.065911081076532,
+        "avg_recall": 1.0,
+        "time_s": 4.752485752105713
+      },
+      "NOT 555": {
+        "selectivity": 0.98324,
+        "avg_latency_ms": 46.90548896789551,
+        "qps": 21.319466484710365,
+        "avg_recall": 1.0,
+        "time_s": 4.696158170700073
+      },
+      "NOT 612": {
+        "selectivity": 0.98756,
+        "avg_latency_ms": 34.935901165008545,
+        "qps": 28.623850155655642,
+        "avg_recall": 1.0,
+        "time_s": 3.499130964279175
+      },
+      "NOT 749": {
+        "selectivity": 0.98302,
+        "avg_latency_ms": 46.869797706604004,
+        "qps": 21.33570121765426,
+        "avg_recall": 1.0,
+        "time_s": 4.692380428314209
+      },
+      "NOT 93": {
+        "selectivity": 0.99422,
+        "avg_latency_ms": 47.321834564208984,
+        "qps": 21.131894171244408,
+        "avg_recall": 1.0,
+        "time_s": 4.737588882446289
+      },
+      "OR 177 295": {
+        "selectivity": 0.01232,
+        "avg_latency_ms": 31.266098022460938,
+        "qps": 31.98352411233471,
+        "avg_recall": 1.0,
+        "time_s": 3.1305181980133057
+      },
+      "OR 185 23": {
+        "selectivity": 0.01164,
+        "avg_latency_ms": 30.843515396118164,
+        "qps": 32.421725836279215,
+        "avg_recall": 1.0,
+        "time_s": 3.088261127471924
+      },
+      "OR 291 688": {
+        "selectivity": 0.02466,
+        "avg_latency_ms": 31.239752769470215,
+        "qps": 32.01049660601903,
+        "avg_recall": 1.0,
+        "time_s": 3.1277754306793213
+      },
+      "OR 366 293": {
+        "selectivity": 0.00512,
+        "avg_latency_ms": 30.855672359466553,
+        "qps": 32.40895185656841,
+        "avg_recall": 1.0,
+        "time_s": 3.0893285274505615
+      },
+      "OR 396 988": {
+        "selectivity": 0.08702,
+        "avg_latency_ms": 31.809215545654297,
+        "qps": 31.437430406441372,
+        "avg_recall": 1.0,
+        "time_s": 3.1848113536834717
+      },
+      "OR 410 OR 425 394": {
+        "selectivity": 0.0252,
+        "avg_latency_ms": 32.51863718032837,
+        "qps": 30.751596214029966,
+        "avg_recall": 1.0,
+        "time_s": 3.255844831466675
+      },
+      "OR 423 OR 140 312": {
+        "selectivity": 0.02742,
+        "avg_latency_ms": 44.55587148666382,
+        "qps": 22.443731132030795,
+        "avg_recall": 1.0,
+        "time_s": 4.4594714641571045
+      },
+      "OR 503 OR 452 675": {
+        "selectivity": 0.02996,
+        "avg_latency_ms": 44.61750507354736,
+        "qps": 22.412727882287523,
+        "avg_recall": 1.0,
+        "time_s": 4.46567964553833
+      },
+      "OR 504 OR 137 796": {
+        "selectivity": 0.0269,
+        "avg_latency_ms": 44.70359563827515,
+        "qps": 22.369565260289747,
+        "avg_recall": 1.0,
+        "time_s": 4.47426176071167
+      },
+      "OR 580 644": {
+        "selectivity": 0.0284,
+        "avg_latency_ms": 30.984885692596436,
+        "qps": 32.273799875238566,
+        "avg_recall": 1.0,
+        "time_s": 3.1027615070343018
+      },
+      "OR 598 OR 600 438": {
+        "selectivity": 0.03492,
+        "avg_latency_ms": 44.49838876724243,
+        "qps": 22.472723793005102,
+        "avg_recall": 1.0,
+        "time_s": 4.453875541687012
+      },
+      "OR 625 954": {
+        "selectivity": 0.00764,
+        "avg_latency_ms": 30.656473636627197,
+        "qps": 32.619537780276126,
+        "avg_recall": 1.0,
+        "time_s": 3.069514751434326
+      },
+      "OR 661 OR 868 602": {
+        "selectivity": 0.0315,
+        "avg_latency_ms": 44.704225063323975,
+        "qps": 22.36925030203499,
+        "avg_recall": 1.0,
+        "time_s": 4.47429084777832
+      },
+      "OR 67 28": {
+        "selectivity": 0.01202,
+        "avg_latency_ms": 30.020103454589844,
+        "qps": 33.31101112002023,
+        "avg_recall": 1.0,
+        "time_s": 3.0059447288513184
+      },
+      "OR 696 OR 73 737": {
+        "selectivity": 0.02646,
+        "avg_latency_ms": 32.62299060821533,
+        "qps": 30.653228945484035,
+        "avg_recall": 1.0,
+        "time_s": 3.2662456035614014
+      },
+      "OR 807 OR 497 453": {
+        "selectivity": 0.03082,
+        "avg_latency_ms": 44.41474437713623,
+        "qps": 22.515045713395544,
+        "avg_recall": 1.0,
+        "time_s": 4.445751905441284
+      },
+      "OR 857 92": {
+        "selectivity": 0.01326,
+        "avg_latency_ms": 30.510168075561523,
+        "qps": 32.77595841240201,
+        "avg_recall": 1.0,
+        "time_s": 3.0548784732818604
+      },
+      "OR 878 OR 915 95": {
+        "selectivity": 0.04922,
+        "avg_latency_ms": 45.12089252471924,
+        "qps": 22.1626821644132,
+        "avg_recall": 1.0,
+        "time_s": 4.516116380691528
+      },
+      "OR 924 187": {
+        "selectivity": 0.04288,
+        "avg_latency_ms": 31.327433586120605,
+        "qps": 31.92090399779964,
+        "avg_recall": 1.0,
+        "time_s": 3.1366143226623535
+      },
+      "OR 935 OR 882 382": {
+        "selectivity": 0.01882,
+        "avg_latency_ms": 44.73871469497681,
+        "qps": 22.352005568731247,
+        "avg_recall": 1.0,
+        "time_s": 4.47791051864624
+      }
+    }
+  }
+}

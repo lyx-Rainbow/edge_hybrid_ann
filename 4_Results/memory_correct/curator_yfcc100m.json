@@ -1,0 +1,7 @@
+{
+  "dataset": "yfcc100m",
+  "index": "Curator",
+  "rss_peak_query_mb": 242.33409118652344,
+  "index_memory_mb": 242.33409118652344,
+  "note": "diagnostic measurement after cleanup"
+}

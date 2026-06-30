@@ -1,0 +1,7 @@
+{
+  "dataset": "yfcc100m",
+  "index": "Pre-Filtering",
+  "rss_peak_query_mb": 1209.09375,
+  "index_memory_mb": 626.7367286682129,
+  "note": "diagnostic measurement after cleanup"
+}

@@ -1,0 +1,193 @@
+#include <faiss/IndexHybridCurator.h>
+
+namespace faiss {
+
+HybridCurator::HybridCurator(
+        int d,
+        int M,
+        int gamma,
+        int M_beta,
+        int n_branches,
+        int leaf_size,
+        int n_uniq_labels,
+        float sel_threshold,
+        bool use_local_sel)
+        : MultiTenantIndex(d, METRIC_L2),
+          index_built(false),
+          own_fields(true),
+          sel_threshold(sel_threshold),
+          use_local_sel(use_local_sel) {
+    storage = new IndexFlat(d, METRIC_L2);
+
+    curator = new MultiTenantIndexIVFHierarchical(
+            /*storage=*/storage,
+            /*n_clusters=*/n_branches,
+            /*bf_capacity=*/n_uniq_labels,
+            /*bf_false_pos=*/0.01,
+            /*max_sl_size=*/leaf_size,
+            /*clus_niter=*/20,
+            /*max_leaf_size=*/leaf_size,
+            /*nprobe=*/0,      // Not used
+            /*prune_thres=*/0, // Not used
+            /*variance_boost=*/0.4,
+            /*search_ef=*/1, // Should be set manually later
+            /*beam_size=*/4);
+
+    acorn = new IndexACORN(
+            /*storage=*/storage,
+            /*M=*/M,
+            /*gamma=*/gamma,
+            /*metadata=*/acorn_metadata,
+            /*M_beta=*/M_beta);
+}
+
+HybridCurator::HybridCurator(
+        IndexACORN* acorn,
+        MultiTenantIndexIVFHierarchical* curator,
+        float sel_threshold, 
+        bool use_local_sel)
+        : MultiTenantIndex(curator->d, curator->metric_type),
+          acorn(acorn),
+          curator(curator),
+          storage(curator->storage),
+          own_fields(false),
+          index_built(false),
+          sel_threshold(sel_threshold),
+          use_local_sel(use_local_sel) {
+    // Check if ACORN and Curator shares the same storage
+    assert(acorn->storage == curator->storage &&
+           "ACORN and Curator must share the same storage");
+}
+
+HybridCurator::~HybridCurator() {
+    if (own_fields) {
+        delete storage;
+        delete acorn;
+        delete curator;
+    }
+}
+
+void HybridCurator::train(idx_t n, const float* x, ext_lid_t tid) {
+    curator->train(n, x, tid);
+}
+
+void HybridCurator::add_vector_with_ids(
+        idx_t n,
+        const float* x,
+        const idx_t* labels) {
+    // we do not support non-sequential labels because ACORN does not
+    // support it otherwise we can maintain a mapping from labels to indices
+    for (idx_t i = 0; i < n; i++) {
+        if (labels[i] != i) {
+            FAISS_THROW_MSG("Labels must be sequential");
+        }
+    }
+
+    if (!index_built) {
+        storage->add(n, x);
+        curator->add_vector_with_ids(n, x, labels);
+
+        ntotal = storage->ntotal;
+        acorn_metadata.resize(ntotal);
+        std::fill(acorn_metadata.begin(), acorn_metadata.end(), 0);
+        acorn->acorn.metadata = acorn_metadata.data();
+        
+        acorn->add(n, x);
+
+        index_built = true;
+    } else {
+        FAISS_THROW_MSG("ACORN does not support adding vectors");
+    }
+}
+
+void HybridCurator::grant_access(idx_t label, ext_lid_t tid) {
+    assert(label >= 0 && "Label must be non-negative");
+    curator->grant_access(label, tid);
+    
+    if (bitmaps.find(tid) == bitmaps.end()) {
+        bitmaps[tid] = std::vector<char>(ntotal, 0);
+        cardinalities[tid] = 0;
+    }
+    bitmaps[tid][label] = 1;
+    cardinalities[tid] += 1;
+}
+
+bool HybridCurator::revoke_access(idx_t label, ext_lid_t tid) {
+    assert(label >= 0 && "Label must be non-negative");
+    bool retv = curator->revoke_access(label, tid);
+    if (retv) {
+        bitmaps[tid][label] = 0;
+        cardinalities[tid] -= 1;
+    }
+    return retv;
+}
+
+float HybridCurator::get_global_selectivity(ext_lid_t tid) const {
+    auto it = bitmaps.find(tid);
+    if (it != bitmaps.end()) {
+        return cardinalities.at(tid) / (float)ntotal;
+    } else {
+        return 0.0f;
+    }
+}
+
+void HybridCurator::search(
+        idx_t n,
+        const float* x,
+        idx_t k,
+        ext_lid_t tid,
+        float* distances,
+        idx_t* labels,
+        const SearchParameters* params) const {
+    if (use_local_sel) {
+        char* filter = bitmaps.at(tid).data();
+        bool succeed = acorn->search(n, x, k, distances, labels, filter, sel_threshold, params);
+        if (!succeed) {
+            curator->search(n, x, k, tid, distances, labels, params);
+        }
+    } else {
+        float global_sel = get_global_selectivity(tid);
+        if (global_sel > sel_threshold) {
+            char* filter = bitmaps.at(tid).data();
+            acorn->search(n, x, k, distances, labels, filter, 0.0f, params);
+        } else {
+            curator->search(n, x, k, tid, distances, labels, params);
+        }
+    }
+}
+
+size_t HybridCurator::get_total_memory_bytes() const {
+    size_t total = 0;
+
+    // Curator index memory (includes tree, PQ codes, etc.)
+    if (curator) {
+        total += curator->get_total_memory_bytes();
+    }
+
+    // ACORN index memory (HNSW graph + storage)
+    if (acorn) {
+        // ACORN storage (raw vectors)
+        if (acorn->storage) {
+            total += acorn->storage->ntotal * acorn->d * sizeof(float);
+        }
+        // ACORN HNSW graph: approximate as ntotal * (d*4 + M*2*sizeof(tableint))
+        if (acorn->ntotal > 0) {
+            total += acorn->ntotal * (acorn->d * sizeof(float) +
+                       acorn->acorn.M * 2 * sizeof(uint64_t));
+        }
+    }
+
+    // Bitmaps
+    for (const auto& [tid, bm] : bitmaps) {
+        total += sizeof(tid) + bm.size();
+    }
+
+    // Cardinalities
+    for (const auto& [tid, card] : cardinalities) {
+        total += sizeof(tid) + sizeof(int);
+    }
+
+    return total;
+}
+
+} // namespace faiss
