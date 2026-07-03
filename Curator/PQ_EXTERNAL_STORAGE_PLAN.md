@@ -3,9 +3,9 @@
 > **核心目标**: 将PQ码从内存中移出，存储到外存（磁盘/SSD），在检索需要时按需加载，仅加载实际使用的PQ码，以显著减少索引运行时内存开销。
 >
 > **修订记录**:
-> - v5 (2026-07-03): 第二轮深度源代码审查（逐行对照 curator_index.cpp/h、pq_codec.cpp/h、config.h、profiling.h、common.h、main.cpp、distance.h、flash_store.cpp、temp_index.cpp、tree_node.h）——发现 14 项新问题/改进点，含内部逻辑不一致、跨线程指针安全性、LRU策略优化、边界条件缺失；修正 §4.2/附录A 中 `compute_pq_distances` 的双重加锁冗余；补充完整的内存模型说明
-> - v4 (2026-07-03): 对照legacy源码深度对比审查——确认 d_table 重用策略优于legacy；发现 temp_index PQ 集成缺口；标注 header 格式兼容性；补充 legacy 对比分析
-> - v3 (2026-07-03): 对照curator源码系统性审查——修复 `pq_d_table_` 线程安全缺陷、`seq_indices` 越界风险、重复转换逻辑；优化锁粒度；补充边界条件处理
+> - v5: 第二轮深度源代码审查（逐行对照 curator_index.cpp/h、pq_codec.cpp/h、config.h、profiling.h、common.h、main.cpp、distance.h、flash_store.cpp、temp_index.cpp、tree_node.h）——发现 14 项新问题/改进点，含内部逻辑不一致、跨线程指针安全性、LRU策略优化、边界条件缺失；修正 §4.2/附录A 中 `compute_pq_distances` 的双重加锁冗余；补充完整的内存模型说明
+> - v4: 对照legacy源码深度对比审查——确认 d_table 重用策略优于legacy；发现 temp_index PQ 集成缺口；标注 header 格式兼容性；补充 legacy 对比分析
+> - v3: 对照curator源码系统性审查——修复 `pq_d_table_` 线程安全缺陷、`seq_indices` 越界风险、重复转换逻辑；优化锁粒度；补充边界条件处理
 > - v2: 系统性审查修正——线程安全、const正确性、指针安全性、接口简化、临时文件管理、profiling接入
 
 ---

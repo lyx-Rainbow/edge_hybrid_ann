@@ -375,6 +375,7 @@ void CuratorIndex::search_one(const float* x, size_t k, int_lid_t tid,
                                   : std::chrono::high_resolution_clock::time_point{};
 
     // Check temp index cache
+    //TODO: 这里的temp index cache是指什么？是指在内存中缓存的临时索引数据吗？为什么search_one函数要优先使用temp index cache？如果temp index cache没有命中，才会使用标准的搜索路径？
     const std::vector<TempIndexNode>* temp_nodes = nullptr;
     const std::vector<int_vid_t>* qualified_vecs = nullptr;
     if (get_cached_temp_index_data(tid, temp_nodes, qualified_vecs)) {
@@ -739,6 +740,7 @@ bool CuratorIndex::remove_vector(ext_vid_t /*label*/) {
 ext_lid_t CuratorIndex::build_filter_index(
         const std::string& predicate,
         const ext_vid_t* qualified, size_t n) {
+    //TODO: 该函数是用来做什么的？在哪里被调用？
     // Convert ext → int
     std::vector<int_vid_t> int_vids;
     int_vids.reserve(n);

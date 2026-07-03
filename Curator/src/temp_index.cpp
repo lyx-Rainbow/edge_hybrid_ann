@@ -12,7 +12,6 @@
 
 namespace curator {
 
-//TODO: sorted_qualified_vecs是怎么得到的？具体定义在哪个文件里？
 void build_temp_index(
         const TreeNode* root,
         const std::vector<int_vid_t>& sorted_qualified_vecs,
@@ -174,6 +173,7 @@ void search_temp_index(
                 // The caller (CuratorIndex) should handle exact distance computation
                 // Here we just insert with a placeholder distance of 0
                 // (Real implementation requires access to raw vectors)
+                //TODO: 这里为什么不使用PQ码计算近似距离？
                 results.insert(vid, score); // Use node score as approximate distance
             }
         }

@@ -120,6 +120,7 @@ private:
     bool persist_pq_codes_ = false;
 
     // Pointers to CuratorIndex's sequence mapping (non-owning)
+
     const std::vector<int_vid_t>* seq_to_vid_ = nullptr;
     const std::unordered_map<int_vid_t, size_t>* vid_to_seq_ = nullptr;
 };

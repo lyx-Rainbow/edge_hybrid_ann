@@ -277,6 +277,7 @@ int main(int argc, char** argv) {
 
     auto t_search_start = std::chrono::high_resolution_clock::now();
 
+    //TODO:似乎只处理简单谓词查询，无法处理复杂谓词查询（例如AND/OR组合）？那么是否还支持开展复杂谓词查询实验？
     if (cfg.batch_query) {
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic)

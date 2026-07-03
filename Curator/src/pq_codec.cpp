@@ -250,6 +250,7 @@ const uint8_t* PQCodec::get_code(size_t seq_idx) const {
     tl_code_buf_.resize(M_);
     bool ok = block_cache_->get_code(seq_idx, tl_code_buf_.data());
     return ok ? tl_code_buf_.data() : nullptr;
+    //TODO: 该函数在哪里被调用？
 }
 
 // ============================================================================
