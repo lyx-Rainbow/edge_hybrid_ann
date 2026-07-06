@@ -22,6 +22,8 @@ struct TreeNode {
     int_vid_t node_id;
 
     /* cluster information */
+    // Do NOT modify (push_back/resize) after construction — TempIndexNode
+    // holds non-owning pointers (centroid.data()) into this vector.
     std::vector<float> centroid;
     RunningMean variance;
 

@@ -193,7 +193,9 @@ struct RunningList {
                 dists_tmp.push_back(cands[j].first);
                 j++;
             }
-            //TODO: 下行的break操作是否会导致在dists和cands均有多出来的元素时，多出来的元素插入后无法保证大于capacity部分有序？
+            // Safe to break: both inputs are sorted ascending, so the first 'capacity'
+            // elements produced by the merge are the globally smallest 'capacity'.
+            // Elements past the break point are larger and correctly discarded.
             if (vids_tmp.size() == static_cast<size_t>(capacity)) break;
         }
         while (vids_tmp.size() < static_cast<size_t>(capacity) && i < dists.size()) {
@@ -238,11 +240,17 @@ template <typename ExtLabel, typename IntLabel>
 struct IdAllocator {
     static const IntLabel INVALID_ID;
 
-    //TODO: 下面三个变量的含义是什么？
+    // free_list:   released but reusable internal IDs (hole-reuse to keep ID space compact)
+    // label_to_id: Ext→Int forward mapping (given external label, find contiguous internal ID)
+    // id_to_label: Int→Ext reverse mapping (vector indexed by dense internal ID, O(1) access)
     std::unordered_set<IntLabel> free_list;
     std::unordered_map<ExtLabel, IntLabel> label_to_id;
     std::vector<ExtLabel> id_to_label;
 
+    // Free-list ID allocator: allocates dense internal IDs with hole-reuse.
+    // free_list holds IDs from previously freed labels so they can be reused
+    // instead of monotonically growing id_to_label.  id_to_label uses a vector
+    // (O(1) index access) with INVALID_ID sentinels for freed-but-not-last slots.
     IntLabel allocate_id(ExtLabel label) {
         CURATOR_THROW_IF_NOT_MSG(
                 label_to_id.find(label) == label_to_id.end(),
@@ -250,23 +258,33 @@ struct IdAllocator {
 
         IntLabel id;
         if (free_list.empty()) {
+            // Allocate fresh ID: push a placeholder sentinel, immediately
+            // overwritten below with the real label.
             id = static_cast<IntLabel>(id_to_label.size());
             id_to_label.push_back(INVALID_ID);
         } else {
+            // Reuse a previously freed ID from the free-list.
             id = *free_list.begin();
             free_list.erase(free_list.begin());
         }
 
         label_to_id.emplace(label, id);
-        id_to_label[id] = label;
+        id_to_label[id] = label;  // replace INVALID_ID placeholder
         return id;
     }
 
+    // Allocate a reserved label by scanning from max int16 downwards.
+    // Used for filter-index temporary tenant labels to avoid collision
+    // with real tenant IDs from the dataset.
     ExtLabel allocate_reserved_label() {
         for (ExtLabel label = std::numeric_limits<ExtLabel>::max();
              label != std::numeric_limits<ExtLabel>::min();
              label--) {
             if (!has_label(label)) return label;
+        }
+        // Also check min() — the loop condition '!= min()' stops before reaching it
+        if (!has_label(std::numeric_limits<ExtLabel>::min())) {
+            return std::numeric_limits<ExtLabel>::min();
         }
         CURATOR_THROW_MSG("No available reserved label");
     }

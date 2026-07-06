@@ -60,9 +60,11 @@ void PQCodec::train(size_t n, const float* x, size_t d, size_t M, size_t nbits) 
     kcfg.niter = 20;
     kcfg.seed = 1234;
 
-#ifdef _OPENMP
-#pragma omp parallel for schedule(dynamic)
-#endif
+    // Run M sub-space kmeans trainings serially — each kmeans internally
+    // parallelizes over n vectors via OpenMP.  Serializing the outer loop
+    // avoids nested parallelism (M × n_threads fork/join overhead) and
+    // ensures each kmeans gets the full thread pool.
+    // See REVIEW §Problem #5 for rationale.
     for (size_t m = 0; m < M; m++) {
         auto result = kmeans(static_cast<int>(dsub_), static_cast<int>(n), x + m * dsub_,
                               static_cast<int>(ksub_), kcfg, static_cast<int>(d));
@@ -244,13 +246,15 @@ void PQCodec::close_cache() {
 // ============================================================================
 // get_code — single code via block cache, uses thread_local buffer
 // ============================================================================
+// Reserved: single-code access via thread_local buffer.
+// Currently unused — compute_pq_distances() uses the more efficient
+// batch interface prefetch_and_get_codes() (single lock for all codes).
 const uint8_t* PQCodec::get_code(size_t seq_idx) const {
     if (!block_cache_) return nullptr;
 
     tl_code_buf_.resize(M_);
     bool ok = block_cache_->get_code(seq_idx, tl_code_buf_.data());
     return ok ? tl_code_buf_.data() : nullptr;
-    //TODO: 该函数在哪里被调用？
 }
 
 // ============================================================================

@@ -6,7 +6,6 @@
 
 namespace curator {
 
-//TODO:实验过程中真的使用该文件中的默认值了吗？
 struct CuratorConfig {
     // Data dimensions
     size_t d = 128;

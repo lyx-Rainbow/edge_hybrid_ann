@@ -1,0 +1,233 @@
+{
+  "date": "2026-07-06",
+  "description": "Curator component-level ablation experiments on small datasets",
+  "config": {
+    "n_clusters": 32,
+    "bf_capacity": 1000,
+    "bf_false_pos": 0.001,
+    "max_sl_size": 256,
+    "clus_niter": 20,
+    "max_leaf_size": 128,
+    "search_ef": 1024,
+    "beam_size": 4,
+    "k": 10
+  },
+  "experiments": {
+    "arxiv_small_baseline": {
+      "dataset": "arxiv_small",
+      "n_vectors": 50000,
+      "d": 384,
+      "n_labels": 99,
+      "n_access_pairs": 84912,
+      "pq_M": 128,
+      "pq_nbits": 8,
+      "pq_enabled": true,
+      "pq_use_adc_rerank": true,
+      "use_flash_storage": true,
+      "build_time_s": 22.81,
+      "memory_mb": 10.94,
+      "total_search_s": 0.210,
+      "avg_latency_ms": 0.420,
+      "n_queries": 500,
+      "recall_at_10": {
+        "mean": 0.9970,
+        "median": 1.0000,
+        "p90": 1.0000,
+        "min": 0.9000,
+        "perfect_count": 485
+      },
+      "profiling_last_query_ms": {
+        "beam_search": 0.014,
+        "frontier_search": 0.377,
+        "pq_table_build": 0.064,
+        "pq_distance_compute": 0.196,
+        "candidate_merge": 0.070,
+        "rerank": 0.040,
+        "total": 0.432,
+        "nodes_popped": 59,
+        "shortlists_scanned": 56,
+        "children_expanded": 2,
+        "rerank_count": 40
+      }
+    },
+    "arxiv_small_nopq": {
+      "dataset": "arxiv_small",
+      "pq_enabled": false,
+      "pq_use_adc_rerank": false,
+      "use_flash_storage": false,
+      "build_time_s": 4.94,
+      "memory_mb": 83.77,
+      "total_search_s": 0.430,
+      "avg_latency_ms": 0.870,
+      "recall_at_10": {
+        "mean": 0.9970,
+        "median": 1.0000,
+        "p90": 1.0000,
+        "min": 0.9000,
+        "perfect_count": 485
+      },
+      "profiling_last_query_ms": {
+        "beam_search": 0.015,
+        "frontier_search": 0.736,
+        "candidate_merge": 0.077,
+        "rerank": 0.000,
+        "total": 0.750,
+        "nodes_popped": 59,
+        "shortlists_scanned": 56,
+        "children_expanded": 2
+      }
+    },
+    "arxiv_small_pq_norerank": {
+      "dataset": "arxiv_small",
+      "pq_enabled": true,
+      "pq_use_adc_rerank": false,
+      "use_flash_storage": true,
+      "build_time_s": 25.02,
+      "memory_mb": 10.94,
+      "total_search_s": 0.200,
+      "avg_latency_ms": 0.410,
+      "recall_at_10": {
+        "mean": 0.8840,
+        "median": 0.9000,
+        "p90": 1.0000,
+        "min": 0.6000,
+        "perfect_count": 100
+      },
+      "profiling_last_query_ms": {
+        "beam_search": 0.014,
+        "frontier_search": 0.373,
+        "pq_table_build": 0.063,
+        "pq_distance_compute": 0.185,
+        "candidate_merge": 0.073,
+        "rerank": 0.000,
+        "total": 0.387
+      }
+    },
+    "arxiv_small_noflash": {
+      "dataset": "arxiv_small",
+      "pq_enabled": true,
+      "pq_use_adc_rerank": true,
+      "use_flash_storage": false,
+      "note": "Flash auto-enabled because pq_enabled=true (code enforces this invariant)",
+      "build_time_s": 24.25,
+      "memory_mb": 10.94,
+      "total_search_s": 0.210,
+      "avg_latency_ms": 0.410,
+      "recall_at_10": {
+        "mean": 0.9970,
+        "median": 1.0000,
+        "p90": 1.0000,
+        "min": 0.9000,
+        "perfect_count": 485
+      }
+    },
+    "yfcc100m_small_baseline": {
+      "dataset": "yfcc100m_small",
+      "n_vectors": 50000,
+      "d": 192,
+      "n_labels": 1000,
+      "n_access_pairs": 669136,
+      "pq_M": 64,
+      "pq_nbits": 8,
+      "pq_enabled": true,
+      "pq_use_adc_rerank": true,
+      "use_flash_storage": true,
+      "build_time_s": 11.41,
+      "memory_mb": 13.39,
+      "total_search_s": 0.170,
+      "avg_latency_ms": 0.340,
+      "n_queries": 500,
+      "recall_at_10": {
+        "mean": 0.9970,
+        "median": 1.0000,
+        "p90": 1.0000,
+        "min": 0.7000,
+        "perfect_count": 488
+      },
+      "profiling_last_query_ms": {
+        "beam_search": 0.001,
+        "frontier_search": 0.045,
+        "pq_table_build": 0.032,
+        "pq_distance_compute": 0.010,
+        "candidate_merge": 0.000,
+        "rerank": 0.034,
+        "total": 0.080,
+        "nodes_popped": 1,
+        "shortlists_scanned": 1,
+        "children_expanded": 0,
+        "rerank_count": 40
+      }
+    },
+    "yfcc100m_small_nopq": {
+      "dataset": "yfcc100m_small",
+      "pq_enabled": false,
+      "pq_use_adc_rerank": false,
+      "use_flash_storage": false,
+      "build_time_s": 2.00,
+      "memory_mb": 49.80,
+      "total_search_s": 0.510,
+      "avg_latency_ms": 1.020,
+      "recall_at_10": {
+        "mean": 0.9958,
+        "median": 1.0000,
+        "p90": 1.0000,
+        "min": 0.6000,
+        "perfect_count": 485
+      },
+      "profiling_last_query_ms": {
+        "beam_search": 0.001,
+        "frontier_search": 0.053,
+        "candidate_merge": 0.000,
+        "rerank": 0.000,
+        "total": 0.054,
+        "nodes_popped": 1,
+        "shortlists_scanned": 1,
+        "children_expanded": 0
+      }
+    },
+    "yfcc100m_small_pq_norerank": {
+      "dataset": "yfcc100m_small",
+      "pq_enabled": true,
+      "pq_use_adc_rerank": false,
+      "use_flash_storage": true,
+      "build_time_s": 10.96,
+      "memory_mb": 13.39,
+      "total_search_s": 0.155,
+      "avg_latency_ms": 0.310,
+      "recall_at_10": {
+        "mean": 0.8732,
+        "median": 0.9000,
+        "p90": 1.0000,
+        "min": 0.6000,
+        "perfect_count": 97
+      }
+    }
+  },
+  "key_findings": {
+    "pq_compression_ratio": {
+      "arxiv_small": 7.66,
+      "yfcc100m_small": 3.72
+    },
+    "pq_build_overhead_pct": {
+      "arxiv_small": 78.3,
+      "yfcc100m_small": 82.5
+    },
+    "rerank_recall_gain": {
+      "arxiv_small": 0.113,
+      "yfcc100m_small": 0.124
+    },
+    "rerank_latency_cost_pct": {
+      "arxiv_small": 2.4,
+      "yfcc100m_small": 9.7
+    },
+    "pq_vs_exact_speedup": {
+      "arxiv_small": 2.07,
+      "yfcc100m_small": 3.00
+    }
+  },
+  "bugs_found_and_fixed": [
+    "flush() unconditionally cleared raw_buffer_, causing crash in no-PQ+no-Flash mode",
+    "find_all_qualified_vecs() was private, blocking complex predicate CLI usage",
+    "build_filter_index lacked int_vid_t* overload, causing type mismatch compilation error"
+  ]
+}

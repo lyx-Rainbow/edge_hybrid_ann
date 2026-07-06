@@ -85,12 +85,15 @@ bool PQBlockCache::open(const std::string& path, size_t M, size_t nbits,
 
 // ============================================================================
 // close
+//
+// File deletion is managed by PQCodec (which owns pq_file_path_ and the
+// persist_pq_codes_ flag), NOT by PQBlockCache.  The delete_file parameter
+// is accepted for API symmetry but currently unused — PQBlockCache does not
+// store the file path and cannot unlink independently.
 // ============================================================================
 void PQBlockCache::close(bool delete_file) {
     std::lock_guard<std::mutex> lock(mutex_);
-    // Note: we don't store the file path, so delete_file is only meaningful
-    // when the caller also unlinks via pq_codec's stored path.
-    (void)delete_file;
+    (void)delete_file;  // file lifecycle managed by PQCodec, not this class
     if (fd_ >= 0) {
         ::close(fd_);
         fd_ = -1;

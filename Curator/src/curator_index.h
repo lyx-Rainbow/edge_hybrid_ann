@@ -48,7 +48,10 @@ public:
     bool remove_vector(ext_vid_t label); // stub: NOT_SUPPORTED
     ext_lid_t build_filter_index(const std::string& predicate,
                                   const ext_vid_t* qualified, size_t n);
+    ext_lid_t build_filter_index(const std::string& predicate,
+                                  const int_vid_t* qualified, size_t n);
     ext_lid_t get_filter_label(const std::string& predicate) const;
+    std::vector<int_vid_t> find_all_qualified_vecs(const std::string& filter) const;
 
     // ── Runtime parameter tuning ──
     void set_rerank_params(bool enabled, size_t topk_factor);
@@ -125,7 +128,6 @@ private:
     // ── Private helpers ──
     void grant_access_impl(TreeNode* node, int_vid_t vid, int_lid_t tid);
     float compute_vector_distance(const float* query, int_vid_t vid) const;
-    std::vector<int_vid_t> find_all_qualified_vecs(const std::string& filter) const;
     std::string convert_complex_predicate(const std::string& filter) const;
     bool get_cached_temp_index_data(int_lid_t tid,
                                      const std::vector<TempIndexNode>*& nodes,

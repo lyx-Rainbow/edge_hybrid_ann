@@ -90,6 +90,7 @@ void search_temp_index(
         size_t d,
         size_t search_ef,
         size_t beam_size,
+        BatchDistanceFn compute_distances,
         float* distances,
         int_vid_t* labels) {
     if (nodes.empty()) return;
@@ -98,11 +99,13 @@ void search_temp_index(
     std::priority_queue<Candidate, std::vector<Candidate>, std::greater<Candidate>> frontier;
     RunningList results(static_cast<int>(search_ef));
 
-    // Initialize: score root node (variance_boost = 0)
+    // Initialize: score root node.
+    // variance_boost = 0 for temp_index (no RunningMean variance data available),
+    // so node_score() degenerates to plain l2_sqr — use it directly.
     float root_score = l2_sqr(query, nodes[0].centroid, d);
     frontier.emplace(root_score, 0);
 
-    // Beam search on temp index
+    // ── Phase 1: Beam search (navigation only — no vector collection) ──
     std::vector<Candidate> beam;
     std::vector<Candidate> next_beam;
 
@@ -110,16 +113,21 @@ void search_temp_index(
         beam.emplace_back(root_score, 0);
 
         while (true) {
-            //TODO: 评分时为什么不使用tree_node.h中的node_score()函数？因为temp_index没有variance信息吗？
             bool updated = false;
             for (auto& [score, node_idx] : beam) {
                 const auto& node = nodes[node_idx];
 
-                // Check if this is a "leaf" in temp index (no children or small range)
-                if (node.children.empty() || (node.end - node.start) <= static_cast<int>(search_ef)) {
+                // Terminal node: keep in beam for Phase 2, do NOT expand further.
+                // Terminal condition: no children (true leaf) OR range is small
+                // enough that all vids can be scanned (≤ search_ef).
+                if (node.children.empty() ||
+                    (node.end - node.start) <= static_cast<int>(search_ef)) {
                     next_beam.emplace_back(score, node_idx);
                 } else {
                     updated = true;
+                    // Expand children — score them by centroid distance.
+                    // variance_boost=0 here (TempIndexNode has no variance),
+                    // so plain l2_sqr is used instead of node_score().
                     for (int child_idx : node.children) {
                         const auto& child = nodes[child_idx];
                         float child_score = l2_sqr(query, child.centroid, d);
@@ -132,6 +140,7 @@ void search_temp_index(
 
             std::sort(next_beam.begin(), next_beam.end());
             auto n_keep = std::min(beam_size, next_beam.size());
+            // Nodes beyond beam_width are pushed to frontier for Phase 2
             for (size_t i = n_keep; i < next_beam.size(); i++) {
                 frontier.push(next_beam[i]);
             }
@@ -141,40 +150,54 @@ void search_temp_index(
             next_beam.clear();
         }
 
-        // Push beam results to frontier
+        // Push beam results to frontier for Phase 2
         for (auto& cand : beam) {
             frontier.push(cand);
         }
     } else {
         frontier.emplace(root_score, 0);
     }
-    //TODO: 这里的beam search和frontier search的区别是什么？为什么beam search不直接收集qualified_vecs，而是继续扩展节点？可能是因为beam search只保留了部分节点，qualified_vecs可能不完整？
+    // Phase 1 (beam search) and Phase 2 (frontier search) are complementary:
+    // - Beam search navigates depth-first with limited width, finding the most
+    //   promising regions. Nodes not in the top-beam_width are pushed to frontier.
+    // - Frontier search explores the full priority-ordered space, collecting
+    //   vectors from terminal nodes and expanding non-terminal ones.
+    // This two-phase design ensures both depth-priority (fast descent) and
+    // breadth-completeness (no promising region missed).
 
-    // Frontier search: pop nodes, collect candidates
+    // ── Phase 2: Frontier search (collect vectors with REAL distances) ──
     while (!frontier.empty()) {
         auto [score, node_idx] = frontier.top();
         frontier.pop();
 
         const auto& node = nodes[node_idx];
 
-        // Expand children if any
-        for (int child_idx : node.children) {
-            const auto& child = nodes[child_idx];
-            float child_score = l2_sqr(query, child.centroid, d);
-            frontier.emplace(child_score, child_idx);
-        }
+        bool is_terminal = node.children.empty() ||
+                           (node.end - node.start) <= static_cast<int>(search_ef);
 
-        // Collect qualified vectors from this node's range
-        if (node.children.empty() || (node.end - node.start) <= static_cast<int>(search_ef)) {
+        if (is_terminal) {
+            // ★ Terminal node: collect all vids in this range and compute
+            //   real distances via the callback (PQ or exact).
+            //   Do NOT expand children — they are subsets of this range
+            //   and would cause redundant double-collection.
+            std::vector<int_vid_t> node_vids;
+            node_vids.reserve(node.end - node.start);
             for (int i = node.start; i < node.end; i++) {
-                int_vid_t vid = qualified_vecs[i];
-                // NOTE: compute_vector_distance depends on CuratorIndex state
-                // For temp_index, we use a simplified approach:
-                // The caller (CuratorIndex) should handle exact distance computation
-                // Here we just insert with a placeholder distance of 0
-                // (Real implementation requires access to raw vectors)
-                //TODO: 这里为什么不使用PQ码计算近似距离？
-                results.insert(vid, score); // Use node score as approximate distance
+                node_vids.push_back(qualified_vecs[i]);
+            }
+
+            // ★ Compute real vector distances (PQ ADC or exact L2)
+            std::vector<std::pair<float, int_vid_t>> node_dists;
+            compute_distances(node_vids, node_dists);
+            std::sort(node_dists.begin(), node_dists.end());
+            results.batch_insert(node_dists);
+        } else {
+            // ★ Non-terminal node: expand children, do NOT collect vids.
+            //   The range is too large to scan directly — push deeper.
+            for (int child_idx : node.children) {
+                const auto& child = nodes[child_idx];
+                float child_score = l2_sqr(query, child.centroid, d);
+                frontier.emplace(child_score, child_idx);
             }
         }
     }

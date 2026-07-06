@@ -1,4 +1,9 @@
-// flash_store.cpp — Flash disk storage implementation
+// flash_store.cpp — Flash disk storage implementation (pread/pwrite-based I/O)
+//
+// Uses pread/pwrite instead of fseek+fread/fwrite to avoid potential offset
+// truncation on platforms where long is 32-bit.  Offsets use off_t which is
+// guaranteed 64-bit when _FILE_OFFSET_BITS=64 is defined (set in CMakeLists.txt).
+// This is consistent with pq_block_cache.cpp which also uses pread.
 #include "flash_store.h"
 
 #include <algorithm>
@@ -36,26 +41,24 @@ void FlashStore::close() {
 }
 
 void FlashStore::write_vector(size_t offset, const float* vec, size_t d) {
-    if (std::fseek(fp_, static_cast<long>(offset), SEEK_SET) != 0) {
-        throw std::runtime_error("FlashStore: fseek failed in write_vector");
-    }
-    size_t written = std::fwrite(vec, sizeof(float), d, fp_);
-    if (written != d) {
-        throw std::runtime_error("FlashStore: fwrite failed in write_vector");
+    int fd = fileno(fp_);
+    ssize_t nwritten = ::pwrite(fd, vec, d * sizeof(float),
+                                static_cast<off_t>(offset));
+    if (nwritten != static_cast<ssize_t>(d * sizeof(float))) {
+        throw std::runtime_error("FlashStore: pwrite failed in write_vector");
     }
 }
 
-void FlashStore::write_leaf_region(size_t region_start, size_t region_bytes,
+void FlashStore::write_leaf_region(size_t region_start, size_t /*region_bytes*/,
                                     const float* vectors, size_t n_vectors, size_t d) {
-    if (std::fseek(fp_, static_cast<long>(region_start), SEEK_SET) != 0) {
-        throw std::runtime_error("FlashStore: fseek failed");
-    }
+    int fd = fileno(fp_);
     size_t total = n_vectors * d;
-    size_t written = std::fwrite(vectors, sizeof(float), total, fp_);
-    if (written != total) {
-        throw std::runtime_error("FlashStore: fwrite failed");
+    ssize_t nwritten = ::pwrite(fd, vectors, total * sizeof(float),
+                                static_cast<off_t>(region_start));
+    if (nwritten != static_cast<ssize_t>(total * sizeof(float))) {
+        throw std::runtime_error("FlashStore: pwrite failed in write_leaf_region");
     }
-    std::fflush(fp_);
+    // No fflush needed: pwrite bypasses userspace buffering
 }
 
 void FlashStore::write_all_leaves(const std::vector<std::vector<float>>& leaf_vectors,
@@ -71,12 +74,11 @@ void FlashStore::write_all_leaves(const std::vector<std::vector<float>>& leaf_ve
 }
 
 void FlashStore::read_vector(size_t offset, size_t d, float* out) const {
-    if (std::fseek(fp_, static_cast<long>(offset), SEEK_SET) != 0) {
-        throw std::runtime_error("FlashStore: fseek failed in read_vector");
-    }
-    size_t nread = std::fread(out, sizeof(float), d, fp_);
-    if (nread != d) {
-        throw std::runtime_error("FlashStore: fread failed in read_vector");
+    int fd = fileno(fp_);
+    ssize_t nread = ::pread(fd, out, d * sizeof(float),
+                            static_cast<off_t>(offset));
+    if (nread != static_cast<ssize_t>(d * sizeof(float))) {
+        throw std::runtime_error("FlashStore: pread failed in read_vector");
     }
 }
 
@@ -94,6 +96,8 @@ void FlashStore::read_batch(const std::vector<size_t>& offsets, size_t d,
 
     constexpr size_t MERGE_THRESHOLD = 65536; // 64KB merge threshold
 
+    int fd = fileno(fp_);
+
     for (size_t i = 0; i < sorted.size(); ) {
         // Build a merge range
         size_t j = i + 1;
@@ -106,18 +110,25 @@ void FlashStore::read_batch(const std::vector<size_t>& offsets, size_t d,
         }
 
         if (j == i + 1) {
-            // Single read
-            read_vector(sorted[i].first, d, out.data() + sorted[i].second * d);
+            // Single read — use pread directly
+            ssize_t nread = ::pread(fd, out.data() + sorted[i].second * d,
+                                    d * sizeof(float),
+                                    static_cast<off_t>(sorted[i].first));
+            if (nread != static_cast<ssize_t>(d * sizeof(float))) {
+                throw std::runtime_error("FlashStore: pread failed in read_batch");
+            }
         } else {
             // Merged read
-            size_t merge_bytes = sorted[j-1].first - sorted[i].first + d * sizeof(float);
+            size_t merge_start = sorted[i].first;
+            size_t merge_bytes = sorted[j-1].first - merge_start + d * sizeof(float);
             std::vector<float> buf(merge_bytes / sizeof(float));
-            if (std::fseek(fp_, static_cast<long>(sorted[i].first), SEEK_SET) != 0) {
-                throw std::runtime_error("FlashStore: fseek failed in read_batch");
+            ssize_t nread = ::pread(fd, buf.data(), merge_bytes,
+                                    static_cast<off_t>(merge_start));
+            if (nread != static_cast<ssize_t>(merge_bytes)) {
+                throw std::runtime_error("FlashStore: pread failed in read_batch merge");
             }
-            std::fread(buf.data(), sizeof(float), buf.size(), fp_);
             for (size_t k = i; k < j; k++) {
-                size_t buf_off = (sorted[k].first - sorted[i].first) / sizeof(float);
+                size_t buf_off = (sorted[k].first - merge_start) / sizeof(float);
                 std::memcpy(out.data() + sorted[k].second * d,
                             buf.data() + buf_off, d * sizeof(float));
             }

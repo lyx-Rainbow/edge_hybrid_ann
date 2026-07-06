@@ -10,6 +10,8 @@ find_package(OpenMP REQUIRED)
 
 # Compiler flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -O3 -march=native")
+# Ensure 64-bit file offsets (required for flash store files > 2 GB)
+add_compile_definitions(_FILE_OFFSET_BITS=64)
 
 # Source files
 set(CURATOR_SOURCES

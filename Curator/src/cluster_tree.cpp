@@ -32,6 +32,15 @@ void build_tree(TreeNode* node, size_t n, const float* x, const CuratorConfig& c
         return;
     }
 
+    // Guard: if we have fewer vectors than clusters, K-means would truncate
+    // n_clusters inside kmeans() (line 48), causing result.centroids to have
+    // fewer entries than cfg.n_clusters.  The subsequent loop below would then
+    // read past the end of result.centroids when clus_id >= n.
+    // Simply stop recursion here — splitting into n < k branches is meaningless.
+    if (n < cfg.n_clusters) {
+        return;
+    }
+
     // K-means clustering
     KMeansConfig kcfg;
     kcfg.niter = static_cast<int>(cfg.clus_niter);

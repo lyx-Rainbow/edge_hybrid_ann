@@ -29,6 +29,12 @@ __pycache__/
 # ===== 日志 =====
 logs/
 
+# ===== 各方法的 CMake 构建产物 =====
+**/build/
+
+# ===== SPTAG 外部数据集 =====
+SPANN-PostFiltering/SPTAG-main/datasets/
+
 # ===== IDE / Editor =====
 .vscode/
 .idea/

@@ -153,6 +153,7 @@ void print_usage() {
     printf("  --train_access PATH    Training access pairs .npy file [M, 2] int32\n");
     printf("  --queries PATH         Query vectors .npy file [Q, d] float32\n");
     printf("  --query_labels PATH    Query tenant labels .npy file [Q] int32 (-1=unfiltered)\n");
+    printf("  --filter EXPR          Complex predicate filter (e.g. \"1 AND 2\")\n");
     printf("  --config PATH          JSON config file (optional, defaults used)\n");
     printf("  --k K                  Number of results per query (default: 10)\n");
     printf("  --batch-query          Enable inter-query OpenMP parallelism\n");
@@ -166,6 +167,7 @@ void print_usage() {
 int main(int argc, char** argv) {
     std::string train_vecs_path, train_access_path, queries_path, query_labels_path;
     std::string config_path, output_path = "results.json";
+    std::string filter_expr;  // complex predicate (AND/OR/NOT), empty = simple query
     size_t k = 10;
     bool batch_query = false;
     bool profile = false;
@@ -186,6 +188,7 @@ int main(int argc, char** argv) {
         else if (arg == "--k" && i + 1 < argc) k = std::stoull(argv[++i]);
         else if (arg == "--batch-query") batch_query = true;
         else if (arg == "--output" && i + 1 < argc) output_path = argv[++i];
+        else if (arg == "--filter" && i + 1 < argc) filter_expr = argv[++i];
         else if (arg == "--profile") profile = true;
         else {
             fprintf(stderr, "Unknown option: %s\n", arg.c_str());
@@ -275,9 +278,24 @@ int main(int argc, char** argv) {
     std::vector<std::vector<ext_vid_t>> all_labels(n_queries);
     std::vector<std::vector<float>> all_dists(n_queries);
 
+    // If a complex filter predicate is specified, build a filter index once
+    // and use it for all queries (replaces per-query tenant_id filtering).
+    ext_lid_t filter_label = -1;
+    if (!filter_expr.empty()) {
+        printf("Evaluating complex filter: %s\n", filter_expr.c_str());
+        auto qualified = index.find_all_qualified_vecs(filter_expr);
+        printf("  Qualified vectors: %zu\n", qualified.size());
+        if (!qualified.empty()) {
+            filter_label = index.build_filter_index(
+                filter_expr, qualified.data(), qualified.size());
+            printf("  Filter index built, label=%d\n", static_cast<int>(filter_label));
+        } else {
+            fprintf(stderr, "Warning: no vectors match filter, all results will be empty\n");
+        }
+    }
+
     auto t_search_start = std::chrono::high_resolution_clock::now();
 
-    //TODO:似乎只处理简单谓词查询，无法处理复杂谓词查询（例如AND/OR组合）？那么是否还支持开展复杂谓词查询实验？
     if (cfg.batch_query) {
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic)
@@ -285,26 +303,42 @@ int main(int argc, char** argv) {
         for (size_t q = 0; q < n_queries; q++) {
             all_labels[q].resize(k);
             all_dists[q].resize(k);
-            ext_lid_t tid = (q < query_labels.size()) ?
-                static_cast<ext_lid_t>(query_labels[q]) : -1;
-            index.search(query_vecs.data() + q * cfg.d, k, tid,
-                          all_dists[q].data(), all_labels[q].data());
+            if (filter_label >= 0) {
+                // Complex predicate: use the pre-built filter index
+                index.search(query_vecs.data() + q * cfg.d, k, filter_label,
+                              all_dists[q].data(), all_labels[q].data());
+            } else {
+                ext_lid_t tid = (q < query_labels.size()) ?
+                    static_cast<ext_lid_t>(query_labels[q]) : -1;
+                index.search(query_vecs.data() + q * cfg.d, k, tid,
+                              all_dists[q].data(), all_labels[q].data());
+            }
         }
     } else {
         for (size_t q = 0; q < n_queries; q++) {
             all_labels[q].resize(k);
             all_dists[q].resize(k);
-            ext_lid_t tid = (q < query_labels.size()) ?
-                static_cast<ext_lid_t>(query_labels[q]) : -1;
-            index.search(query_vecs.data() + q * cfg.d, k, tid,
-                          all_dists[q].data(), all_labels[q].data());
+            if (filter_label >= 0) {
+                index.search(query_vecs.data() + q * cfg.d, k, filter_label,
+                              all_dists[q].data(), all_labels[q].data());
+            } else {
+                ext_lid_t tid = (q < query_labels.size()) ?
+                    static_cast<ext_lid_t>(query_labels[q]) : -1;
+                index.search(query_vecs.data() + q * cfg.d, k, tid,
+                              all_dists[q].data(), all_labels[q].data());
+            }
         }
     }
 
     auto t_search_end = std::chrono::high_resolution_clock::now();
     double search_time_s = std::chrono::duration<double>(t_search_end - t_search_start).count();
-    printf("Search complete: %.2f s total, %.2f ms/query\n",
-           search_time_s, search_time_s / n_queries * 1000.0);
+    if (filter_label >= 0) {
+        printf("Search complete (filter mode): %.2f s total, %.2f ms/query\n",
+               search_time_s, search_time_s / n_queries * 1000.0);
+    } else {
+        printf("Search complete: %.2f s total, %.2f ms/query\n",
+               search_time_s, search_time_s / n_queries * 1000.0);
+    }
 
     // ── Output ──
     printf("\nWriting results to %s ...\n", output_path.c_str());

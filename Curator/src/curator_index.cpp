@@ -335,9 +335,12 @@ void CuratorIndex::flush() {
         flash_finalized_ = true;
     }
 
-    // Free raw buffer (vectors now on flash or encoded in PQ)
-    raw_buffer_.clear();
-    raw_buffer_.shrink_to_fit();
+    // Free raw buffer only when vectors are safely persisted on flash.
+    // If neither flash nor PQ was used, raw_buffer must stay for exact-distance search.
+    if (flash_finalized_) {
+        raw_buffer_.clear();
+        raw_buffer_.shrink_to_fit();
+    }
 }
 
 // ============================================================================
@@ -374,14 +377,40 @@ void CuratorIndex::search_one(const float* x, size_t k, int_lid_t tid,
     auto t_start = profiling_on_ ? std::chrono::high_resolution_clock::now()
                                   : std::chrono::high_resolution_clock::time_point{};
 
-    // Check temp index cache
-    //TODO: 这里的temp index cache是指什么？是指在内存中缓存的临时索引数据吗？为什么search_one函数要优先使用temp index cache？如果temp index cache没有命中，才会使用标准的搜索路径？
+    // ── Temp index cache for bitmap filter queries ──
+    // When build_filter_index() is called with use_temp_index_caching=true,
+    // it caches a lightweight TempIndexNode tree + sorted qualified vids
+    // keyed by the filter's internal tenant ID (filter_tid).
+    //
+    // If this search's tid happens to be a cached filter_tid, we take the
+    // fast path: search_temp_index directly on the cached nodes, skipping
+    // the full beam-search → frontier → PQ pipeline on the main cluster tree.
+    //
+    // Standard single-tenant queries (tid = real tenant label) will NOT
+    // hit this cache — they fall through to the normal search path below.
     const std::vector<TempIndexNode>* temp_nodes = nullptr;
     const std::vector<int_vid_t>* qualified_vecs = nullptr;
     if (get_cached_temp_index_data(tid, temp_nodes, qualified_vecs)) {
-        // Use temp index path
+        // Build PQ distance table + batch-distance callback
+        std::vector<float> pq_d_table;
+        bool use_pq = cfg_.pq_enabled && pq_.is_trained() && pq_.has_cache();
+        if (use_pq) {
+            pq_.build_distance_table(x, pq_d_table);
+        }
+
+        auto batch_dist_fn = [&](const std::vector<int_vid_t>& vids,
+                                  std::vector<std::pair<float, int_vid_t>>& out) {
+            if (use_pq) {
+                pq_.compute_pq_distances(pq_d_table, vids, out);
+            } else {
+                for (int_vid_t vid : vids) {
+                    out.emplace_back(compute_vector_distance(x, vid), vid);
+                }
+            }
+        };
+
         search_temp_index(*temp_nodes, *qualified_vecs, x, k, d,
-                          search_ef, beam_sz, distances, labels);
+                          search_ef, beam_sz, batch_dist_fn, distances, labels);
         if (profiling_on_) {
             std::strncpy(profile_.query_type, "temp_index", sizeof(profile_.query_type) - 1);
             auto t_end = std::chrono::high_resolution_clock::now();
@@ -499,6 +528,8 @@ void CuratorIndex::search_one(const float* x, size_t k, int_lid_t tid,
     }
 
     // ── Phase 3: ADC Rerank (if enabled) ──
+    // Batch-read candidates from flash to reduce random I/O: collects all
+    // offsets, calls flash_.read_batch() once, then computes exact L2 distances.
     if (cfg_.pq_use_adc_rerank && !cand_vectors.vids.empty()) {
         auto t_rerank = profiling_on_ ? std::chrono::high_resolution_clock::now()
                                        : std::chrono::high_resolution_clock::time_point{};
@@ -507,9 +538,44 @@ void CuratorIndex::search_one(const float* x, size_t k, int_lid_t tid,
         if (profiling_on_) profile_.rerank_count = static_cast<int>(n_rerank);
 
         RunningList exact_list(static_cast<int>(n_rerank));
-        for (size_t i = 0; i < n_rerank; i++) {
-            float exact_dist = compute_vector_distance(x, cand_vectors.vids[i]);
-            exact_list.insert(cand_vectors.vids[i], exact_dist);
+
+        if (flash_finalized_ && flash_.is_open()) {
+            // ── Batch I/O path: collect offsets, read all at once ──
+            std::vector<size_t> offsets;
+            std::vector<int_vid_t> rerank_vids;
+            offsets.reserve(n_rerank);
+            rerank_vids.reserve(n_rerank);
+
+            for (size_t i = 0; i < n_rerank; i++) {
+                int_vid_t vid = cand_vectors.vids[i];
+                auto leaf_it = vid_to_leaf_id_.find(vid);
+                if (leaf_it != vid_to_leaf_id_.end()) {
+                    auto seq_it = leaf_node_id_to_seq_.find(leaf_it->second);
+                    if (seq_it != leaf_node_id_to_seq_.end()) {
+                        auto local_it = vid_to_local_idx_.find(vid);
+                        if (local_it != vid_to_local_idx_.end()) {
+                            offsets.push_back(seq_it->second * leaf_region_size_ +
+                                             local_it->second * cfg_.d * sizeof(float));
+                            rerank_vids.push_back(vid);
+                        }
+                    }
+                }
+            }
+
+            if (!offsets.empty()) {
+                std::vector<float> batch_buf;
+                flash_.read_batch(offsets, cfg_.d, batch_buf);
+                for (size_t i = 0; i < rerank_vids.size(); i++) {
+                    float exact_dist = l2_sqr(x, batch_buf.data() + i * cfg_.d, cfg_.d);
+                    exact_list.insert(rerank_vids[i], exact_dist);
+                }
+            }
+        } else {
+            // ── In-memory fallback: raw_buffer_ still available ──
+            for (size_t i = 0; i < n_rerank; i++) {
+                float exact_dist = compute_vector_distance(x, cand_vectors.vids[i]);
+                exact_list.insert(cand_vectors.vids[i], exact_dist);
+            }
         }
         cand_vectors = std::move(exact_list);
 
@@ -647,10 +713,28 @@ void CuratorIndex::search_with_bitmap(
         profile_.temp_nodes_count = temp_nodes.size();
     }
 
-    // Search temp index
+    // Search temp index with real vector distances
+    std::vector<float> pq_d_table;
+    bool use_pq = cfg_.pq_enabled && pq_.is_trained() && pq_.has_cache();
+    if (use_pq) {
+        pq_.build_distance_table(x, pq_d_table);
+    }
+
+    auto batch_dist_fn = [&](const std::vector<int_vid_t>& vids,
+                              std::vector<std::pair<float, int_vid_t>>& out) {
+        if (use_pq) {
+            pq_.compute_pq_distances(pq_d_table, vids, out);
+        } else {
+            for (int_vid_t vid : vids) {
+                out.emplace_back(compute_vector_distance(x, vid), vid);
+            }
+        }
+    };
+
     std::vector<int_vid_t> int_labels(k);
     search_temp_index(temp_nodes, sorted_vids, x, k, cfg_.d,
-                      cfg_.search_ef, cfg_.beam_size, distances, int_labels.data());
+                      cfg_.search_ef, cfg_.beam_size, batch_dist_fn,
+                      distances, int_labels.data());
 
     // Convert int_vid_t → ext_vid_t
     for (size_t i = 0; i < k; i++) {
@@ -736,11 +820,25 @@ bool CuratorIndex::remove_vector(ext_vid_t /*label*/) {
 
 // ============================================================================
 // Filter index building
+//
+// Builds a temporary or persistent index for complex predicate queries
+// (AND/OR/NOT combinations of tenant labels).
+//
+// Called by external code (CLI or Python via subprocess) when a complex
+// predicate like "1 AND 2" or "1 OR (2 AND 3)" needs to be evaluated.
+// The workflow:
+//   1. find_all_qualified_vecs(filter) → get qualified vid list
+//   2. build_filter_index(filter, qualified, n) → allocate filter_tid,
+//      build TempIndexNode tree (if caching) or batch_grant_access (if not)
+//   3. search(query, k, filter_tid, ...) → search_one hits temp_index cache
+//
+// Currently NOT called from main.cpp bench mode (which only does simple
+// single-tenant queries via query_labels).  To enable complex-predicate
+// experiments, add a --filter CLI option that calls this function.
 // ============================================================================
 ext_lid_t CuratorIndex::build_filter_index(
         const std::string& predicate,
         const ext_vid_t* qualified, size_t n) {
-    //TODO: 该函数是用来做什么的？在哪里被调用？
     // Convert ext → int
     std::vector<int_vid_t> int_vids;
     int_vids.reserve(n);
@@ -750,6 +848,17 @@ ext_lid_t CuratorIndex::build_filter_index(
         }
     }
     std::sort(int_vids.begin(), int_vids.end());
+    return build_filter_index(predicate, int_vids.data(), int_vids.size());
+}
+
+ext_lid_t CuratorIndex::build_filter_index(
+        const std::string& predicate,
+        const int_vid_t* qualified, size_t n) {
+    std::vector<int_vid_t> int_vids(qualified, qualified + n);
+    // Already sorted by caller, but ensure for safety
+    if (!std::is_sorted(int_vids.begin(), int_vids.end())) {
+        std::sort(int_vids.begin(), int_vids.end());
+    }
 
     // Allocate new internal tenant ID
     ext_lid_t filter_label = tid_map_.allocate_reserved_label();
