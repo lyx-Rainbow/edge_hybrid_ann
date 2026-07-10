@@ -670,6 +670,7 @@ void CuratorIndex::search_unfiltered(const float* x, size_t k,
 
 // ============================================================================
 // Search: bitmap filter
+// unreachable, Reserved for direct bitmap-filter search without caching
 // ============================================================================
 void CuratorIndex::search_with_bitmap(
         const float* x, size_t k,

@@ -30,6 +30,8 @@ def main():
     parser.add_argument("--config", type=str, default=None, help="Path to JSON config file")
     parser.add_argument("--profile", action="store_true", help="Enable profiling output")
     parser.add_argument("--batch_query", action="store_true", help="Enable inter-query parallelism")
+    parser.add_argument("--query_filters", type=str, default=None,
+                        help="Per-query filter expressions file (one per line)")
     parser.add_argument("--n_queries", type=int, default=0,
                         help="Limit number of queries (0=all)")
     args = parser.parse_args()
@@ -104,6 +106,8 @@ def main():
 
     if args.config and os.path.exists(args.config):
         cmd += ["--config", args.config]
+    if args.query_filters and os.path.exists(args.query_filters):
+        cmd += ["--query_filters", args.query_filters]
     if args.batch_query:
         cmd.append("--batch-query")
     if args.profile:

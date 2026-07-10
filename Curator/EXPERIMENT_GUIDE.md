@@ -52,6 +52,8 @@ make -j$(nproc)
 | yfcc100m（完整） | 800,000 | 192 | 1,000 | `1_Data/ground_truth/yfcc100m/` |
 | sift1m（完整） | 1,000,000 | 128 | 100 | `1_Data/ground_truth/sift1m/` |
 | gist1m（完整） | 1,000,000 | 960 | 100 | `1_Data/ground_truth/gist1m/` |
+| wit_small | 50,000 | 384 | 1,000 | `1_Data/ground_truth/wit_small/` |
+| wit（完整） | ~3,000,000 | 384 | 1,000 | `1_Data/ground_truth/wit/` |
 
 ### 各数据集必需文件
 
@@ -263,11 +265,73 @@ $CURATOR_BIN bench \
 | `--train_access PATH` | — | 访问对 `.npy` [M, 2] int32（无标签过滤时可省略） |
 | `--queries PATH` | ✅ | 查询向量 `.npy` [Q, d] float32 |
 | `--query_labels PATH` | — | 查询标签 `.npy` [Q] int32（省略则全部无过滤搜索） |
+| `--filter EXPR` | — | 全局复杂谓词表达式（RPN 格式），应用于全部查询 |
+| `--query_filters PATH` | — | Per-query 复杂谓词文件（每行一个 RPN 表达式，空行=回退） |
 | `--config PATH` | — | JSON 配置文件（省略则使用 C++ 默认值） |
 | `--k K` | — | 返回结果数（默认 10） |
 | `--batch-query` | — | 启用查询间 OpenMP 并行 |
 | `--output PATH` | — | 结果 JSON 路径（默认 `results.json`） |
 | `--profile` | — | 打印最后一个查询的详细计时分解 |
+
+#### 复杂谓词查询（`--filter` / `--query_filters`）
+
+Curator 支持 AND/OR/NOT 布尔组合的复杂谓词过滤。**关键：谓词表达式必须使用 Reverse Polish Notation (RPN/后缀表达式)**——这是底层 `evaluate_formula()` 栈式求值器的语法要求。
+
+**RPN 语法速查**：
+
+| 含义 | ❌ 中缀（不可用） | ✅ RPN（正确） |
+|------|----------------|---------------|
+| A AND B | `1 AND 2` | `1 2 AND` |
+| A OR B | `3 OR 4` | `3 4 OR` |
+| (A AND B) OR C | `(1 AND 2) OR 3` | `1 2 AND 3 OR` |
+| A AND NOT B | `7 AND NOT 2` | `7 2 NOT AND` |
+| 单租户 | `1` | `1` |
+
+> ⚠ **注意事项**：
+> 1. 谓词中的数字引用**内部租户 ID**（int_lid_t），而非外部标签（ext_lid_t）。对从 0 开始连续的标签（arxiv 0..98, yfcc100m 0..999, sift 0..99），两者恒等。
+> 2. `--filter` 和 `--query_filters` 同时指定时，per-query filter 优先；空行回退到 `--filter`，再回退到 `--query_labels`。
+
+**使用方式一：全局谓词（所有查询共用）**
+
+```bash
+# 查询"同时属于租户 1 AND 2"的向量
+$CURATOR_BIN bench \
+    --train_vecs   $DATA/train_vecs.npy \
+    --train_access $DATA/train_access.npy \
+    --queries      $DATA/query_vecs.npy \
+    --query_labels $DATA/query_labels.npy \
+    --filter       '1 2 AND' \
+    --config       /tmp/arxiv_config.json \
+    --k 10 --output $DATA/results.json
+```
+
+**使用方式二：Per-Query 谓词（不同查询使用不同过滤条件）**
+
+创建 `query_filters.txt`（每行一个 RPN 表达式，空行=回退）：
+
+```
+1 2 AND
+3 4 AND 5 OR
+
+7 2 NOT AND
+1
+```
+
+```bash
+# 每条查询使用各自行的谓词表达式
+$CURATOR_BIN bench \
+    --train_vecs     $DATA/train_vecs.npy \
+    --train_access   $DATA/train_access.npy \
+    --queries        $DATA/query_vecs.npy \
+    --query_labels   $DATA/query_labels.npy \
+    --query_filters  query_filters.txt \
+    --config         /tmp/arxiv_config.json \
+    --k 10 --output $DATA/results.json
+```
+
+**实现机制**：
+- **Phase 1（串行预构建）**：遍历 query_filters，对每个唯一谓词调用 `find_all_qualified_vecs()`（全量扫描求值）+ `build_filter_index()`（构建临时索引并缓存）。利用 `filter_to_label_` 映射自动去重，相同谓词只构建一次。
+- **Phase 2（并行搜索）**：每条查询使用预构建的 filter_label 调用 `index.search()`。此阶段仅执行 const 方法，对 OpenMP `batch_query` 模式安全。
 
 #### Step 3 — 计算 Recall
 

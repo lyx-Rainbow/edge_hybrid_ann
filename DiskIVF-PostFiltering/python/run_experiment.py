@@ -49,6 +49,16 @@ BUILTIN_DEFAULTS = {
         "nlist": 64, "nprobe": 16, "clus_niter": 20,
         "k": 10, "num_warmup": 20,
     },
+    "wit": {
+        "dataset": "wit", "d": 384,
+        "nlist": 64, "nprobe": 16, "clus_niter": 20,
+        "k": 10, "num_warmup": 20,
+    },
+    "wit_small": {
+        "dataset": "wit_small", "d": 384,
+        "nlist": 16, "nprobe": 8, "clus_niter": 20,
+        "k": 10, "num_warmup": 10,
+    },
 }
 
 

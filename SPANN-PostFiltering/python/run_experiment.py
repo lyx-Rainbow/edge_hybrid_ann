@@ -74,6 +74,22 @@ BUILTIN_DEFAULTS = {
         "overfetch_factor": 50, "overfetch_adaptive": True,
         "batch_query": False,
     },
+    "wit": {
+        "dataset": "wit", "d": 384,
+        "dist_method": "L2", "num_threads": 1,
+        "max_check": 8192, "hash_exp": 8,
+        "k": 10, "num_warmup": 20,
+        "overfetch_factor": 50, "overfetch_adaptive": True,
+        "batch_query": False,
+    },
+    "wit_small": {
+        "dataset": "wit_small", "d": 384,
+        "dist_method": "L2", "num_threads": 1,
+        "max_check": 4096, "hash_exp": 8,
+        "k": 10, "num_warmup": 10,
+        "overfetch_factor": 50, "overfetch_adaptive": True,
+        "batch_query": False,
+    },
 }
 
 
