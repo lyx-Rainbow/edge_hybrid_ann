@@ -1,7 +1,0 @@
-{
-  "dataset": "yfcc100m",
-  "index": "SPANN",
-  "rss_peak_query_mb": 134.4140625,
-  "index_memory_mb": 0.1884765625,
-  "note": "diagnostic measurement after cleanup"
-}

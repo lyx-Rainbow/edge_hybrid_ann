@@ -1,7 +1,0 @@
-{
-  "dataset": "arxiv",
-  "index": "SPANN",
-  "rss_peak_query_mb": 309.0546875,
-  "index_memory_mb": 0.751953125,
-  "note": "diagnostic measurement after cleanup"
-}
