@@ -1,0 +1,102 @@
+{
+  "dataset": "wit",
+  "config": {
+    "d": 384,
+    "n_labels": 1000,
+    "build": {
+      "nlist": 32,
+      "bf_capacity": 1000,
+      "bf_error_rate": 0.001,
+      "max_sl_size": 256,
+      "clus_niter": 20,
+      "max_leaf_size": 128,
+      "pq_M": 128,
+      "pq_nbits": 8,
+      "pq_enabled": true,
+      "pq_use_adc_rerank": true,
+      "pq_rerank_topk_factor": 4,
+      "use_flash_storage": true
+    },
+    "search": {
+      "variance_boost": 0.2,
+      "search_ef": 4096,
+      "beam_size": 4,
+      "use_temp_index_caching": true
+    },
+    "benchmark": {
+      "k": 10,
+      "n_queries": 1000,
+      "num_warmup": 20
+    }
+  },
+  "build_time_s": 1575.99,
+  "memory_cold_bytes": 1466421246,
+  "memory_cold_mb": 1398.4882793426514,
+  "memory_hot_bytes": 1600638974,
+  "memory_hot_mb": 1526.4882793426514,
+  "memory_breakdown": {
+    "num_tree_nodes": 311841,
+    "tree_node_attrs_mb": 85.64968872070312,
+    "centroids_mb": 456.79833984375,
+    "bloom_filter_mb": 534.7157649993896,
+    "shortlists_overhead_mb": 9.7823486328125,
+    "shortlists_payload_mb": 67.89596557617188,
+    "vector_indices_mb": 22.631988525390625,
+    "id_allocator_mb": 79.21195983886719,
+    "tenant_id_allocator_mb": 0.01903533935546875,
+    "pq_codebook_mb": 0.375,
+    "pq_cache_mb": 128.0,
+    "flash_index_mb": 141.40818786621094,
+    "raw_vectors_buffer_mb": 0.0,
+    "temp_index_cache_mb": 0.0,
+    "temp_qualified_vecs_mb": 0.0,
+    "total_mb": 1526.4882793426514
+  },
+  "search_total_s": 363.67,
+  "avg_latency_ms": 363.67,
+  "n_queries": 1000,
+  "k": 10,
+  "recall": {
+    "mean": 0.7116000000000001,
+    "median": 0.8,
+    "p90": 1.0,
+    "p99": 1.0,
+    "min": 0.0,
+    "perfect_count": 258,
+    "perfect_pct": 25.8
+  },
+  "profiling": {
+    "query_type": "standard",
+    "beam_search_ms": 0.119,
+    "frontier_search_ms": 421.606,
+    "nodes_popped": 142,
+    "shortlists_scanned": 104,
+    "children_expanded": 33,
+    "pq_table_build_ms": 0.09,
+    "pq_distance_compute_ms": 419.678,
+    "candidate_merge_ms": 0.89,
+    "rerank_ms": 0.08,
+    "rerank_count": 40,
+    "total_ms": 421.806
+  },
+  "tree_info": {
+    "num_nodes": 311841,
+    "num_leaves": 302096,
+    "avg_depth": 4.25
+  },
+  "io_stats": {
+    "flash_reads": 35150,
+    "flash_bytes": 60741120,
+    "flash_mb": 57.93,
+    "flash_io_ms": 41.956,
+    "pq_reads": 4413715,
+    "pq_bytes": 2313368284160,
+    "pq_mb": 2206199.92,
+    "pq_io_ms": 211581.249,
+    "pq_cache_hits": 6723509,
+    "pq_cache_misses": 354329,
+    "pq_hit_rate": 95.0
+  },
+  "io_total_ms": 211623.20500000002,
+  "io_pct_of_search": 58.19099870761954
+}

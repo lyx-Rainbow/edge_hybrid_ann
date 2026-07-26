@@ -6,7 +6,7 @@
 #   bash run.sh <index> <dataset> [--sweep]
 #
 # <index>:   curator | pre-filter | diskivf | spann
-# <dataset>: yfcc100m | arxiv | yfcc100m_small | arxiv_small
+# <dataset>: yfcc100m | arxiv | sift1m | gist1m | wit | *_small
 # --sweep:   run parameter sweep instead of single-run benchmark
 #
 # Examples:
@@ -24,7 +24,7 @@ MODE="${3:-}"
 if [ -z "$INDEX" ] || [ -z "$DATASET" ]; then
     echo "Usage: bash run.sh <index> <dataset> [--sweep]"
     echo "  index:   curator | pre-filter | diskivf | spann"
-    echo "  dataset: yfcc100m | arxiv | yfcc100m_small | arxiv_small"
+    echo "  dataset: yfcc100m | arxiv | sift1m | gist1m | wit | *_small"
     exit 1
 fi
 

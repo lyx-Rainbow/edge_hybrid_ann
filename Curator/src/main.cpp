@@ -406,6 +406,9 @@ int main(int argc, char** argv) {
     std::vector<std::vector<ext_vid_t>> all_labels(n_queries);
     std::vector<std::vector<float>> all_dists(n_queries);
 
+    // Reset I/O stats so we only count query-phase I/O
+    index.reset_io_stats();
+
     auto t_search_start = std::chrono::high_resolution_clock::now();
 
     if (cfg.batch_query) {
@@ -460,6 +463,35 @@ int main(int argc, char** argv) {
 
     auto t_search_end = std::chrono::high_resolution_clock::now();
     double search_time_s = std::chrono::duration<double>(t_search_end - t_search_start).count();
+
+    // ── I/O statistics ──
+    auto flash_s = index.flash_io_stats();
+    auto pq_s    = index.pq_cache_stats();
+
+    printf("\n=== I/O Statistics (Query Phase) ===\n");
+    printf("  Flash Store:\n");
+    printf("    reads:       %lu\n", static_cast<unsigned long>(flash_s.read_count));
+    printf("    bytes:       %lu (%.2f MB)\n",
+           static_cast<unsigned long>(flash_s.bytes_read),
+           flash_s.bytes_read / (1024.0 * 1024.0));
+    printf("    io_time:     %.3f ms\n", flash_s.io_time_ms);
+    printf("  PQ Block Cache:\n");
+    printf("    reads:       %lu\n", static_cast<unsigned long>(pq_s.io_count));
+    printf("    bytes:       %lu (%.2f MB)\n",
+           static_cast<unsigned long>(pq_s.bytes_read),
+           pq_s.bytes_read / (1024.0 * 1024.0));
+    printf("    io_time:     %.3f ms\n", pq_s.io_time_ms);
+    printf("    cache_hits:  %lu\n", static_cast<unsigned long>(pq_s.cache_hits));
+    printf("    cache_misses:%lu\n", static_cast<unsigned long>(pq_s.cache_misses));
+    printf("    hit_rate:    %.1f%%\n", pq_s.hit_rate() * 100.0);
+
+    double total_io_ms = flash_s.io_time_ms + pq_s.io_time_ms;
+    double search_time_ms = search_time_s * 1000.0;
+    double io_pct = (search_time_ms > 0) ? (total_io_ms / search_time_ms * 100.0) : 0.0;
+    printf("  ─────────────────────────────\n");
+    printf("  io_total:      %.3f ms\n", total_io_ms);
+    printf("  search_total:  %.3f ms\n", search_time_ms);
+    printf("  io/search:     %.2f%%\n", io_pct);
 
     // Report mode
     bool any_predicate_used = false;

@@ -71,6 +71,10 @@ public:
     PQBlockCache::Stats pq_cache_stats() const;
     size_t pq_cache_bytes() const;
 
+    // ── I/O statistics ──
+    FlashStore::Stats flash_io_stats() const;
+    void reset_io_stats();
+
     // ── Profiling ──
     void enable_profiling(bool on) const;
     const SearchProfile& last_profile() const;

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
@@ -261,8 +262,11 @@ void PQBlockCache::load_block_locked(size_t block_id) {
     size_t offset       = HEADER_SIZE + block_id * cfg_.block_size * M_;
     size_t bytes_to_read = n_in_block * M_;
 
+    auto t0 = std::chrono::high_resolution_clock::now();
     ssize_t nread = ::pread(fd_, entry.data.data(), bytes_to_read,
                             static_cast<off_t>(offset));
+    auto t1 = std::chrono::high_resolution_clock::now();
+
     if (nread != static_cast<ssize_t>(bytes_to_read)) {
         fprintf(stderr, "PQBlockCache::load_block_locked: I/O error on block %zu: "
                 "expected %zd, got %zd (errno=%s)\n",
@@ -273,6 +277,7 @@ void PQBlockCache::load_block_locked(size_t block_id) {
 
     stats_.bytes_read += bytes_to_read;
     stats_.io_count++;
+    stats_.io_time_ms += std::chrono::duration<double, std::milli>(t1 - t0).count();
 
     // Insert at LRU head
     lru_list_.push_front(block_id);

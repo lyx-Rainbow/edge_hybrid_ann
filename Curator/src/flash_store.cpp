@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
 #include <cstring>
 #include <filesystem>
 #include <stdexcept>
@@ -75,8 +76,19 @@ void FlashStore::write_all_leaves(const std::vector<std::vector<float>>& leaf_ve
 
 void FlashStore::read_vector(size_t offset, size_t d, float* out) const {
     int fd = fileno(fp_);
+
+    auto t0 = std::chrono::high_resolution_clock::now();
     ssize_t nread = ::pread(fd, out, d * sizeof(float),
                             static_cast<off_t>(offset));
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    {
+        std::lock_guard<std::mutex> lock(stats_mutex_);
+        stats_.read_count++;
+        stats_.bytes_read += (d * sizeof(float));
+        stats_.io_time_ms += std::chrono::duration<double, std::milli>(t1 - t0).count();
+    }
+
     if (nread != static_cast<ssize_t>(d * sizeof(float))) {
         throw std::runtime_error("FlashStore: pread failed in read_vector");
     }
@@ -111,9 +123,19 @@ void FlashStore::read_batch(const std::vector<size_t>& offsets, size_t d,
 
         if (j == i + 1) {
             // Single read — use pread directly
+            auto t0 = std::chrono::high_resolution_clock::now();
             ssize_t nread = ::pread(fd, out.data() + sorted[i].second * d,
                                     d * sizeof(float),
                                     static_cast<off_t>(sorted[i].first));
+            auto t1 = std::chrono::high_resolution_clock::now();
+
+            {
+                std::lock_guard<std::mutex> lock(stats_mutex_);
+                stats_.read_count++;
+                stats_.bytes_read += (d * sizeof(float));
+                stats_.io_time_ms += std::chrono::duration<double, std::milli>(t1 - t0).count();
+            }
+
             if (nread != static_cast<ssize_t>(d * sizeof(float))) {
                 throw std::runtime_error("FlashStore: pread failed in read_batch");
             }
@@ -122,8 +144,19 @@ void FlashStore::read_batch(const std::vector<size_t>& offsets, size_t d,
             size_t merge_start = sorted[i].first;
             size_t merge_bytes = sorted[j-1].first - merge_start + d * sizeof(float);
             std::vector<float> buf(merge_bytes / sizeof(float));
+
+            auto t0 = std::chrono::high_resolution_clock::now();
             ssize_t nread = ::pread(fd, buf.data(), merge_bytes,
                                     static_cast<off_t>(merge_start));
+            auto t1 = std::chrono::high_resolution_clock::now();
+
+            {
+                std::lock_guard<std::mutex> lock(stats_mutex_);
+                stats_.read_count++;
+                stats_.bytes_read += merge_bytes;
+                stats_.io_time_ms += std::chrono::duration<double, std::milli>(t1 - t0).count();
+            }
+
             if (nread != static_cast<ssize_t>(merge_bytes)) {
                 throw std::runtime_error("FlashStore: pread failed in read_batch merge");
             }
@@ -143,6 +176,19 @@ void FlashStore::truncate(size_t total_size) {
     if (ftruncate(fd, static_cast<off_t>(total_size)) != 0) {
         throw std::runtime_error("FlashStore: ftruncate failed");
     }
+}
+
+// ============================================================================
+// I/O statistics
+// ============================================================================
+FlashStore::Stats FlashStore::stats() const {
+    std::lock_guard<std::mutex> lock(stats_mutex_);
+    return stats_;
+}
+
+void FlashStore::reset_stats() {
+    std::lock_guard<std::mutex> lock(stats_mutex_);
+    stats_.reset();
 }
 
 } // namespace curator

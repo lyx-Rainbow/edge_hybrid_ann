@@ -91,6 +91,7 @@ public:
         uint64_t cache_misses = 0;
         uint64_t bytes_read   = 0;     // total bytes read from disk
         uint64_t io_count     = 0;     // number of disk I/O operations
+        double   io_time_ms   = 0;     // total time spent in disk I/O
         void reset() { *this = Stats{}; }
         double hit_rate() const {
             uint64_t total = cache_hits + cache_misses;

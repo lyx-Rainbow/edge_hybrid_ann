@@ -1105,6 +1105,18 @@ size_t CuratorIndex::pq_cache_bytes() const {
 }
 
 // ============================================================================
+// I/O statistics
+// ============================================================================
+FlashStore::Stats CuratorIndex::flash_io_stats() const {
+    return flash_.stats();
+}
+
+void CuratorIndex::reset_io_stats() {
+    flash_.reset_stats();
+    pq_.reset_cache_stats();
+}
+
+// ============================================================================
 // Sanity check (diagnostic)
 // ============================================================================
 void CuratorIndex::sanity_check() const {

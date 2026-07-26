@@ -3,6 +3,7 @@
 
 #include <cstdio>
 #include <cstddef>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -24,6 +25,21 @@ public:
     ~FlashStore() { close(); }
 
     bool is_open() const { return fp_ != nullptr; }
+
+    // ── I/O statistics ──
+    struct Stats {
+        uint64_t read_count  = 0;   // pread() call count
+        uint64_t bytes_read  = 0;   // total bytes read
+        double   io_time_ms  = 0;   // total time spent in pread() (ms)
+
+        void reset() { *this = Stats{}; }
+    };
+
+    // Thread-safe snapshot of current I/O statistics
+    Stats stats() const;
+
+    // Thread-safe reset of statistics counters
+    void reset_stats();
 
     // Write a vector at a specific byte offset (fseek + fwrite)
     void write_vector(size_t offset, const float* vec, size_t d);
@@ -48,6 +64,10 @@ public:
 
 private:
     FILE* fp_ = nullptr;
+
+    // I/O statistics (mutable: updated in const read methods)
+    mutable std::mutex stats_mutex_;
+    mutable Stats stats_;
 };
 
 } // namespace curator

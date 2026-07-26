@@ -4,13 +4,13 @@
   "n_labels": 100,
 
   "build": {
-    "nlist": 64,
+    "nlist": 32,
     "bf_capacity": 1000,
     "bf_error_rate": 0.001,
     "max_sl_size": 128,
     "clus_niter": 20,
     "max_leaf_size": 128,
-    "pq_M": 16,
+    "pq_M": 32,
     "pq_nbits": 8,
     "pq_enabled": true,
     "pq_use_adc_rerank": true,
@@ -20,8 +20,8 @@
 
   "search": {
     "variance_boost": 0.2,
-    "search_ef": 128,
-    "beam_size": 1,
+    "search_ef": 1024,
+    "beam_size": 4,
     "use_temp_index_caching": true
   },
 
