@@ -1,0 +1,1274 @@
+{
+  "dataset": "yfcc100m_100k",
+  "method": "SPANN",
+  "n_combinations": 16,
+  "sweep_results": [
+    {
+      "params": {
+        "max_check": 2048,
+        "overfetch_factor": 10
+      },
+      "latency_ms": 17.719913929999997,
+      "qps": 56.43368268888652,
+      "avg_recall": 0.7343,
+      "min_recall": 0.0,
+      "build_time_s": 276.953,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 58.8359,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 15.889475399999998,
+          "avg_recall": 0.39599999999999996,
+          "qps": 62.934739808968146
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 17.28260475,
+          "avg_recall": 0.8445,
+          "qps": 57.86164843004929
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 17.77116465,
+          "avg_recall": 0.9620000000000002,
+          "qps": 56.270932136121985
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 21.28464395,
+          "avg_recall": 0.987,
+          "qps": 46.98222823689752
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 33.71293766666667,
+        "avg_recall": 0.408,
+        "qps": 29.66220297641816,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 31.732388,
+            "avg_recall": 1.0,
+            "qps": 31.51354382783924
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 31.969407999999998,
+            "avg_recall": 0.0030000000000000005,
+            "qps": 31.279903587829967
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 39.191965,
+            "avg_recall": 0.018000000000000002,
+            "qps": 25.515434094718138
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 36.370354,
+            "avg_recall": 0.21100000000000002,
+            "qps": 27.494920725819718
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 32.052409000000004,
+            "avg_recall": 0.22900000000000006,
+            "qps": 31.198903021610633
+          },
+          "NOT 290": {
+            "avg_latency_ms": 30.961101999999997,
+            "avg_recall": 0.9869999999999999,
+            "qps": 32.298591955803126
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 2048,
+        "overfetch_factor": 25
+      },
+      "latency_ms": 17.04034051,
+      "qps": 58.684273322657916,
+      "avg_recall": 0.8415,
+      "min_recall": 0.0,
+      "build_time_s": 234.079,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 58.8359,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 17.8768095,
+          "avg_recall": 0.6065,
+          "qps": 55.93839325747695
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 19.61429525,
+          "avg_recall": 0.977,
+          "qps": 50.983223575162604
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 16.4473059,
+          "avg_recall": 0.977,
+          "qps": 60.80023111870255
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 15.3545328,
+          "avg_recall": 0.9884999999999999,
+          "qps": 65.12734793207125
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 17.210075433333333,
+        "avg_recall": 0.4953333333333333,
+        "qps": 58.10549778667153,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 14.9647753,
+            "avg_recall": 1.0,
+            "qps": 66.82358939261854
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 17.328819499999998,
+            "avg_recall": 0.005,
+            "qps": 57.70733545929082
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 17.4126683,
+            "avg_recall": 0.038000000000000006,
+            "qps": 57.42945209609259
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 21.805352700000004,
+            "avg_recall": 0.46199999999999997,
+            "qps": 45.86029924661571
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 14.977982899999999,
+            "avg_recall": 0.479,
+            "qps": 66.76466428600342
+          },
+          "NOT 290": {
+            "avg_latency_ms": 16.7708539,
+            "avg_recall": 0.9880000000000001,
+            "qps": 59.62725606953144
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 2048,
+        "overfetch_factor": 50
+      },
+      "latency_ms": 18.11589946,
+      "qps": 55.20012970970639,
+      "avg_recall": 0.8985,
+      "min_recall": 0.0,
+      "build_time_s": 296.142,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 58.8438,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 16.102530499999997,
+          "avg_recall": 0.7625,
+          "qps": 62.102040421535
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 18.29017135,
+          "avg_recall": 0.978,
+          "qps": 54.67417340516058
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 17.0457146,
+          "avg_recall": 0.977,
+          "qps": 58.66577163036626
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 17.4186521,
+          "avg_recall": 0.9884999999999999,
+          "qps": 57.40972345386013
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 17.698905933333336,
+        "avg_recall": 0.5895,
+        "qps": 56.500667542203516,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 21.6819037,
+            "avg_recall": 1.0,
+            "qps": 46.12141137772879
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 20.416527699999996,
+            "avg_recall": 0.009000000000000001,
+            "qps": 48.9799252200951
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 12.958769600000004,
+            "avg_recall": 0.084,
+            "qps": 77.16782000661541
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 18.4687658,
+            "avg_recall": 0.7350000000000001,
+            "qps": 54.14546975304652
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 16.1990103,
+            "avg_recall": 0.721,
+            "qps": 61.73216643982256
+          },
+          "NOT 290": {
+            "avg_latency_ms": 16.4684585,
+            "avg_recall": 0.9880000000000001,
+            "qps": 60.72213741195024
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 2048,
+        "overfetch_factor": 100
+      },
+      "latency_ms": 24.28203183,
+      "qps": 41.18271514513536,
+      "avg_recall": 0.928,
+      "min_recall": 0.0,
+      "build_time_s": 220.873,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 58.6211,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 22.67178115,
+          "avg_recall": 0.8395,
+          "qps": 44.10769464400903
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 16.74378805,
+          "avg_recall": 0.9784999999999999,
+          "qps": 59.72364180756576
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 18.72495575,
+          "avg_recall": 0.9775,
+          "qps": 53.40466558912963
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 29.0563602,
+          "avg_recall": 0.9884999999999999,
+          "qps": 34.41587291446091
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 18.768620566666666,
+        "avg_recall": 0.6438333333333333,
+        "qps": 53.28042071328428,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 15.634282800000001,
+            "avg_recall": 1.0,
+            "qps": 63.96200022683483
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 18.236143900000002,
+            "avg_recall": 0.021,
+            "qps": 54.83615425956361
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 16.0706186,
+            "avg_recall": 0.174,
+            "qps": 62.225358269656155
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 20.120529099999995,
+            "avg_recall": 0.8330000000000001,
+            "qps": 49.700482280060925
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 19.104870899999998,
+            "avg_recall": 0.8469999999999999,
+            "qps": 52.34267246474825
+          },
+          "NOT 290": {
+            "avg_latency_ms": 23.4452781,
+            "avg_recall": 0.9880000000000001,
+            "qps": 42.65251176525818
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 4096,
+        "overfetch_factor": 10
+      },
+      "latency_ms": 16.82200662,
+      "qps": 59.44594022517392,
+      "avg_recall": 0.7343,
+      "min_recall": 0.0,
+      "build_time_s": 226.83,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 58.7578,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 17.87062785,
+          "avg_recall": 0.39549999999999996,
+          "qps": 55.95774297319945
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 15.231113099999998,
+          "avg_recall": 0.8440000000000001,
+          "qps": 65.65508334384307
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 16.84187495,
+          "avg_recall": 0.9630000000000001,
+          "qps": 59.37581195495101
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 15.688579749999999,
+          "avg_recall": 0.9875,
+          "qps": 63.74063273636991
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 18.172063666666666,
+        "avg_recall": 0.4081666666666666,
+        "qps": 55.02952324750642,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 16.0226698,
+            "avg_recall": 1.0,
+            "qps": 62.41157138493861
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 14.558376500000001,
+            "avg_recall": 0.0030000000000000005,
+            "qps": 68.68897778540072
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 18.5038878,
+            "avg_recall": 0.018000000000000002,
+            "qps": 54.042696908268105
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 28.6517719,
+            "avg_recall": 0.21100000000000002,
+            "qps": 34.901855406715704
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 15.759067300000002,
+            "avg_recall": 0.22900000000000006,
+            "qps": 63.4555320415441
+          },
+          "NOT 290": {
+            "avg_latency_ms": 15.536608700000002,
+            "avg_recall": 0.9880000000000001,
+            "qps": 64.36411055393317
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 4096,
+        "overfetch_factor": 25
+      },
+      "latency_ms": 21.91307693,
+      "qps": 45.63485097024209,
+      "avg_recall": 0.8417,
+      "min_recall": 0.0,
+      "build_time_s": 233.617,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 59.125,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 18.8666597,
+          "avg_recall": 0.6065,
+          "qps": 53.003553140888
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 25.421734649999998,
+          "avg_recall": 0.9775,
+          "qps": 39.33641876794588
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 27.4462672,
+          "avg_recall": 0.977,
+          "qps": 36.43482710100556
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 21.53420455,
+          "avg_recall": 0.9884999999999999,
+          "qps": 46.43774965906508
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 18.6362711,
+        "avg_recall": 0.49549999999999994,
+        "qps": 53.658803020954124,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 17.7102396,
+            "avg_recall": 1.0,
+            "qps": 56.46450994372769
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 16.9290487,
+            "avg_recall": 0.005,
+            "qps": 59.07006458076998
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 18.9645753,
+            "avg_recall": 0.038000000000000006,
+            "qps": 52.72989161006943
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 20.3176925,
+            "avg_recall": 0.46299999999999997,
+            "qps": 49.218187547626286
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 20.1393237,
+            "avg_recall": 0.479,
+            "qps": 49.65410035094674
+          },
+          "NOT 290": {
+            "avg_latency_ms": 17.756746800000002,
+            "avg_recall": 0.9880000000000001,
+            "qps": 56.316622141618865
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 4096,
+        "overfetch_factor": 50
+      },
+      "latency_ms": 35.23593926,
+      "qps": 28.380114763542135,
+      "avg_recall": 0.8982,
+      "min_recall": 0.0,
+      "build_time_s": 282.593,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 58.9648,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 34.0402263,
+          "avg_recall": 0.7609999999999999,
+          "qps": 29.37700799010258
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 35.915113999999996,
+          "avg_recall": 0.978,
+          "qps": 27.843431041315924
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 34.5509825,
+          "avg_recall": 0.977,
+          "qps": 28.942737011892497
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 35.171147999999995,
+          "avg_recall": 0.9884999999999999,
+          "qps": 28.432395780768946
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 32.214845016666665,
+        "avg_recall": 0.5893333333333334,
+        "qps": 31.0415896609976,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 37.920735699999994,
+            "avg_recall": 1.0,
+            "qps": 26.370796387265244
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 13.541107499999999,
+            "avg_recall": 0.009000000000000001,
+            "qps": 73.8492032501773
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 32.8558109,
+            "avg_recall": 0.084,
+            "qps": 30.436016418636008
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 37.72238,
+            "avg_recall": 0.7350000000000001,
+            "qps": 26.50946202227961
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 37.026634,
+            "avg_recall": 0.72,
+            "qps": 27.007585944755334
+          },
+          "NOT 290": {
+            "avg_latency_ms": 34.222402,
+            "avg_recall": 0.9880000000000001,
+            "qps": 29.22062571762204
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 4096,
+        "overfetch_factor": 100
+      },
+      "latency_ms": 19.65905315,
+      "qps": 50.86714972333243,
+      "avg_recall": 0.9278,
+      "min_recall": 0.0,
+      "build_time_s": 294.202,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 58.8047,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 21.741918100000003,
+          "avg_recall": 0.84,
+          "qps": 45.9941020567086
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 19.112933249999998,
+          "avg_recall": 0.978,
+          "qps": 52.32059291579434
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 20.48987035,
+          "avg_recall": 0.977,
+          "qps": 48.80460358793827
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 19.36199355,
+          "avg_recall": 0.9884999999999999,
+          "qps": 51.64757427573877
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 29.823367100000002,
+        "avg_recall": 0.6438333333333334,
+        "qps": 33.53075448010027,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 35.861298,
+            "avg_recall": 1.0,
+            "qps": 27.88521486310953
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 41.627118,
+            "avg_recall": 0.021,
+            "qps": 24.022801674619895
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 44.652295,
+            "avg_recall": 0.17300000000000001,
+            "qps": 22.39526546171927
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 24.002484400000007,
+            "avg_recall": 0.8340000000000002,
+            "qps": 41.662353918663506
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 17.1088708,
+            "avg_recall": 0.8469999999999999,
+            "qps": 58.449211037352626
+          },
+          "NOT 290": {
+            "avg_latency_ms": 15.688136400000001,
+            "avg_recall": 0.9880000000000001,
+            "qps": 63.74243405991803
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 8192,
+        "overfetch_factor": 10
+      },
+      "latency_ms": 29.67779914,
+      "qps": 33.695220972507734,
+      "avg_recall": 0.7343,
+      "min_recall": 0.0,
+      "build_time_s": 218.232,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 59.0195,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 17.14186545,
+          "avg_recall": 0.39549999999999996,
+          "qps": 58.336708038972496
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 29.75059275,
+          "avg_recall": 0.8440000000000001,
+          "qps": 33.61277566478066
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 31.937237500000002,
+          "avg_recall": 0.9630000000000001,
+          "qps": 31.311411952896677
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 35.245172499999995,
+          "avg_recall": 0.987,
+          "qps": 28.372679974824926
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 30.666595000000004,
+        "avg_recall": 0.4081666666666666,
+        "qps": 32.60877185745596,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 32.594424999999994,
+            "avg_recall": 1.0,
+            "qps": 30.680093298163726
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 30.891193999999995,
+            "avg_recall": 0.0030000000000000005,
+            "qps": 32.371684953323594
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 28.064875000000008,
+            "avg_recall": 0.018000000000000002,
+            "qps": 35.631728272440185
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 28.061859000000005,
+            "avg_recall": 0.21100000000000002,
+            "qps": 35.63555785808773
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 30.498044999999998,
+            "avg_recall": 0.22900000000000006,
+            "qps": 32.78898696621374
+          },
+          "NOT 290": {
+            "avg_latency_ms": 33.889172,
+            "avg_recall": 0.9880000000000001,
+            "qps": 29.507950208993005
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 8192,
+        "overfetch_factor": 25
+      },
+      "latency_ms": 33.7693937,
+      "qps": 29.612613388436404,
+      "avg_recall": 0.8417,
+      "min_recall": 0.0,
+      "build_time_s": 232.05,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 58.9922,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 29.525987,
+          "avg_recall": 0.6065,
+          "qps": 33.868469833032165
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 34.3782815,
+          "avg_recall": 0.9775,
+          "qps": 29.08813228491366
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 31.968248000000003,
+          "avg_recall": 0.977,
+          "qps": 31.28103861056133
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 34.87372250000001,
+          "avg_recall": 0.9884999999999999,
+          "qps": 28.674885510143053
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 24.124729883333334,
+        "avg_recall": 0.49566666666666664,
+        "qps": 41.45124131279306,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 17.311006999999996,
+            "avg_recall": 1.0,
+            "qps": 57.766714553347484
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 18.010616499999998,
+            "avg_recall": 0.005,
+            "qps": 55.52280789499905
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 20.3944099,
+            "avg_recall": 0.038000000000000006,
+            "qps": 49.03304409901068
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 22.358882300000005,
+            "avg_recall": 0.46299999999999997,
+            "qps": 44.724954788996754
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 38.4769116,
+            "avg_recall": 0.479,
+            "qps": 25.989611910535977
+          },
+          "NOT 290": {
+            "avg_latency_ms": 28.196551999999997,
+            "avg_recall": 0.9890000000000001,
+            "qps": 35.46532923600021
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 8192,
+        "overfetch_factor": 50
+      },
+      "latency_ms": 26.899301050000002,
+      "qps": 37.17568713555849,
+      "avg_recall": 0.8983,
+      "min_recall": 0.0,
+      "build_time_s": 213.709,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 58.9375,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 14.749376200000002,
+          "avg_recall": 0.7615000000000001,
+          "qps": 67.79947751281847
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 17.379554,
+          "avg_recall": 0.978,
+          "qps": 57.538875853776226
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 36.12663905,
+          "avg_recall": 0.977,
+          "qps": 27.680404994662794
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 33.757294,
+          "avg_recall": 0.9884999999999999,
+          "qps": 29.623227501588246
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 45.846655266666666,
+        "avg_recall": 0.5895,
+        "qps": 21.811841980260258,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 34.3749313,
+            "avg_recall": 1.0,
+            "qps": 29.09096723052942
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 40.425277300000005,
+            "avg_recall": 0.009000000000000001,
+            "qps": 24.73699790798961
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 61.577649,
+            "avg_recall": 0.084,
+            "qps": 16.239658646272773
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 44.728888,
+            "avg_recall": 0.7360000000000001,
+            "qps": 22.35691618356352
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 50.70226300000001,
+            "avg_recall": 0.72,
+            "qps": 19.72298554011287
+          },
+          "NOT 290": {
+            "avg_latency_ms": 43.270922999999996,
+            "avg_recall": 0.9880000000000001,
+            "qps": 23.11020728631095
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 8192,
+        "overfetch_factor": 100
+      },
+      "latency_ms": 27.20862959,
+      "qps": 36.753045451709575,
+      "avg_recall": 0.9279000000000001,
+      "min_recall": 0.0,
+      "build_time_s": 224.212,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 58.6328,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 20.7978886,
+          "avg_recall": 0.84,
+          "qps": 48.08180384233811
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 22.42784955,
+          "avg_recall": 0.978,
+          "qps": 44.58742233715403
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 24.32955445,
+          "avg_recall": 0.977,
+          "qps": 41.102273453264985
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 30.38903885,
+          "avg_recall": 0.9884999999999999,
+          "qps": 32.906601782833285
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 19.526969483333332,
+        "avg_recall": 0.6441666666666667,
+        "qps": 51.211223577397426,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 23.312033199999995,
+            "avg_recall": 1.0,
+            "qps": 42.89630129730599
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 19.934124699999998,
+            "avg_recall": 0.021,
+            "qps": 50.16523248698249
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 17.313770599999998,
+            "avg_recall": 0.17300000000000001,
+            "qps": 57.7574939106563
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 22.365240499999995,
+            "avg_recall": 0.8350000000000002,
+            "qps": 44.71223996003979
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 14.3864616,
+            "avg_recall": 0.8479999999999999,
+            "qps": 69.50979523693303
+          },
+          "NOT 290": {
+            "avg_latency_ms": 19.850186300000004,
+            "avg_recall": 0.9880000000000001,
+            "qps": 50.37736094194742
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 16384,
+        "overfetch_factor": 10
+      },
+      "latency_ms": 17.01070059,
+      "qps": 58.7865264401788,
+      "avg_recall": 0.7345,
+      "min_recall": 0.0,
+      "build_time_s": 272.926,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 67.5117,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 18.5540101,
+          "avg_recall": 0.39549999999999996,
+          "qps": 53.89670451887918
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 17.60067535,
+          "avg_recall": 0.8440000000000001,
+          "qps": 56.816001665527004
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 17.54449995,
+          "avg_recall": 0.9625,
+          "qps": 56.997919738373625
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 15.54025635,
+          "avg_recall": 0.9880000000000001,
+          "qps": 64.34900283996924
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 24.781971483333333,
+        "avg_recall": 0.4081666666666666,
+        "qps": 40.351914724481546,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 14.479736300000003,
+            "avg_recall": 1.0,
+            "qps": 69.06203119182494
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 22.222058500000003,
+            "avg_recall": 0.0030000000000000005,
+            "qps": 45.000331539942614
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 30.718769199999997,
+            "avg_recall": 0.018000000000000002,
+            "qps": 32.553387588198035
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 19.347362099999998,
+            "avg_recall": 0.21100000000000002,
+            "qps": 51.68663277357072
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 22.3296379,
+            "avg_recall": 0.22900000000000006,
+            "qps": 44.783529606631014
+          },
+          "NOT 290": {
+            "avg_latency_ms": 39.594264900000006,
+            "avg_recall": 0.9880000000000001,
+            "qps": 25.25618299836146
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 16384,
+        "overfetch_factor": 25
+      },
+      "latency_ms": 20.413261610000003,
+      "qps": 48.987761931690635,
+      "avg_recall": 0.8416,
+      "min_recall": 0.0,
+      "build_time_s": 262.874,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 67.8281,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 26.13576295,
+          "avg_recall": 0.6065,
+          "qps": 38.2617489266752
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 21.777454499999997,
+          "avg_recall": 0.977,
+          "qps": 45.91904898710729
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 18.631907650000002,
+          "avg_recall": 0.977,
+          "qps": 53.671369501447685
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 19.18933975,
+          "avg_recall": 0.9884999999999999,
+          "qps": 52.11226717688398
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 19.936373500000002,
+        "avg_recall": 0.49549999999999994,
+        "qps": 50.15957390645796,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 24.641428200000004,
+            "avg_recall": 1.0,
+            "qps": 40.58206333998124
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 16.9267497,
+            "avg_recall": 0.005,
+            "qps": 59.07808750784565
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 18.7044687,
+            "avg_recall": 0.038000000000000006,
+            "qps": 53.46315984906858
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 19.704838199999998,
+            "avg_recall": 0.46299999999999997,
+            "qps": 50.74895768492025
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 19.9824917,
+            "avg_recall": 0.479,
+            "qps": 50.04380910114428
+          },
+          "NOT 290": {
+            "avg_latency_ms": 19.6582645,
+            "avg_recall": 0.9880000000000001,
+            "qps": 50.86919041098465
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 16384,
+        "overfetch_factor": 50
+      },
+      "latency_ms": 23.82706065,
+      "qps": 41.96908778171092,
+      "avg_recall": 0.8982,
+      "min_recall": 0.0,
+      "build_time_s": 279.195,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 67.9688,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 23.1196818,
+          "avg_recall": 0.7609999999999999,
+          "qps": 43.25319044832183
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 22.7107218,
+          "avg_recall": 0.978,
+          "qps": 44.03206594693084
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 24.1591805,
+          "avg_recall": 0.977,
+          "qps": 41.3921324856197
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 19.62914125,
+          "avg_recall": 0.9884999999999999,
+          "qps": 50.94466371523003
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 25.08890853333333,
+        "avg_recall": 0.5895,
+        "qps": 39.858250456427456,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 22.0025919,
+            "avg_recall": 1.0,
+            "qps": 45.44919092009338
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 23.08835850000001,
+            "avg_recall": 0.009000000000000001,
+            "qps": 43.31187078544365
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 26.346361400000006,
+            "avg_recall": 0.084,
+            "qps": 37.955905364601875
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 39.7479939,
+            "avg_recall": 0.7360000000000001,
+            "qps": 25.158502401802977
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 20.686756300000003,
+            "avg_recall": 0.72,
+            "qps": 48.340106370373775
+          },
+          "NOT 290": {
+            "avg_latency_ms": 18.661389200000002,
+            "avg_recall": 0.9880000000000001,
+            "qps": 53.58657864549547
+          }
+        }
+      }
+    },
+    {
+      "params": {
+        "max_check": 16384,
+        "overfetch_factor": 100
+      },
+      "latency_ms": 39.38696631,
+      "qps": 25.389109486863653,
+      "avg_recall": 0.9279000000000001,
+      "min_recall": 0.0,
+      "build_time_s": 274.175,
+      "memory_bytes": 28262384,
+      "memory_mb": 26.953109741210938,
+      "rss_peak_query_mb": 67.6914,
+      "per_bucket": {
+        "[0.0010, 0.0695)": {
+          "count": 200,
+          "avg_latency_ms": 22.745076049999998,
+          "avg_recall": 0.84,
+          "qps": 43.96555974584223
+        },
+        "[0.0695, 0.1379)": {
+          "count": 200,
+          "avg_latency_ms": 50.8848985,
+          "avg_recall": 0.978,
+          "qps": 19.652196024327335
+        },
+        "[0.1379, 0.2064)": {
+          "count": 200,
+          "avg_latency_ms": 48.3657555,
+          "avg_recall": 0.977,
+          "qps": 20.675785784014064
+        },
+        "[0.2064, 0.2749)": {
+          "count": 200,
+          "avg_latency_ms": 35.95220499999999,
+          "avg_recall": 0.9884999999999999,
+          "qps": 27.81470566269858
+        }
+      },
+      "complex_predicate": {
+        "n_filters": 6,
+        "n_queries": 100,
+        "avg_latency_ms": 21.576510333333328,
+        "avg_recall": 0.6443333333333334,
+        "qps": 46.34669761472551,
+        "per_filter": {
+          "AND 438 512": {
+            "avg_latency_ms": 33.595369899999994,
+            "avg_recall": 1.0,
+            "qps": 29.766006535323196
+          },
+          "AND 300 458": {
+            "avg_latency_ms": 19.6160508,
+            "avg_recall": 0.021,
+            "qps": 50.978660801592135
+          },
+          "AND 15 NOT 95": {
+            "avg_latency_ms": 17.6593411,
+            "avg_recall": 0.17300000000000001,
+            "qps": 56.62725434302869
+          },
+          "AND 810 NOT 35": {
+            "avg_latency_ms": 20.9369421,
+            "avg_recall": 0.8360000000000001,
+            "qps": 47.76246670711288
+          },
+          "OR 504 OR 137 796": {
+            "avg_latency_ms": 22.4309962,
+            "avg_recall": 0.848,
+            "qps": 44.58116755420787
+          },
+          "NOT 290": {
+            "avg_latency_ms": 15.2203619,
+            "avg_recall": 0.9880000000000001,
+            "qps": 65.70146009471694
+          }
+        }
+      }
+    }
+  ],
+  "index_memory_mb": 26.953109741210938,
+  "rss_peak_query_mb": 58.8359,
+  "build_time_s": 276.953
+}

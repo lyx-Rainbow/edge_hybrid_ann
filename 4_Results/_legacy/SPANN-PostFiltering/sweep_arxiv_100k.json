@@ -1,0 +1,55 @@
+{
+  "dataset": "arxiv_100k",
+  "method": "SPANN",
+  "n_combinations": 4,
+  "sweep_results": [
+    {
+      "params": {
+        "max_check": 2048,
+        "overfetch_factor": 25
+      },
+      "latency_ms": 39.5230054380001,
+      "qps": 25.301719566056384,
+      "avg_recall": 0.9766,
+      "min_recall": 0.2,
+      "build_time_s": 265.07,
+      "memory_bytes": 36676983
+    },
+    {
+      "params": {
+        "max_check": 2048,
+        "overfetch_factor": 100
+      },
+      "latency_ms": 35.02042592900011,
+      "qps": 28.554764069043166,
+      "avg_recall": 0.9766,
+      "min_recall": 0.2,
+      "build_time_s": 264.845,
+      "memory_bytes": 36676983
+    },
+    {
+      "params": {
+        "max_check": 8192,
+        "overfetch_factor": 25
+      },
+      "latency_ms": 40.73962728599986,
+      "qps": 24.546125397265214,
+      "avg_recall": 0.9766,
+      "min_recall": 0.2,
+      "build_time_s": 263.567,
+      "memory_bytes": 36676983
+    },
+    {
+      "params": {
+        "max_check": 8192,
+        "overfetch_factor": 100
+      },
+      "latency_ms": 43.43374221900012,
+      "qps": 23.023574504767154,
+      "avg_recall": 0.9766,
+      "min_recall": 0.2,
+      "build_time_s": 262.73,
+      "memory_bytes": 36676983
+    }
+  ]
+}

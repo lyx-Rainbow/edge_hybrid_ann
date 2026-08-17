@@ -45,3 +45,11 @@ SPANN-PostFiltering/SPTAG-main/datasets/
 # ===== OS 鏂囦欢 =====
 .DS_Store
 Thumbs.db
+
+# ===== 归档区的二进制中间数据（仅保留目录引用，不纳入版本库） =====
+4_Results/_legacy/*/disk_data*/
+4_Results/_legacy/*/test_sweep/
+4_Results/_legacy/*/disk_data
+
+# ===== SPTAG 硬编码索引输出目录（构建时自动生成） =====
+/SPANN/

@@ -1,0 +1,55 @@
+{
+  "dataset": "arxiv_100k",
+  "method": "DiskIVF",
+  "n_combinations": 4,
+  "sweep_results": [
+    {
+      "params": {
+        "nprobe": 1,
+        "nlist": 32
+      },
+      "latency_ms": 46.911786827000114,
+      "qps": 21.316604368274653,
+      "avg_recall": 0.7143,
+      "min_recall": 0.0,
+      "build_time_s": 4.6264,
+      "memory_bytes": 49280
+    },
+    {
+      "params": {
+        "nprobe": 2,
+        "nlist": 32
+      },
+      "latency_ms": 122.80801597999988,
+      "qps": 8.142790940966401,
+      "avg_recall": 0.8752000000000001,
+      "min_recall": 0.0,
+      "build_time_s": 5.07792,
+      "memory_bytes": 49280
+    },
+    {
+      "params": {
+        "nprobe": 4,
+        "nlist": 32
+      },
+      "latency_ms": 214.22006237399992,
+      "qps": 4.668096857586252,
+      "avg_recall": 0.9637,
+      "min_recall": 0.0,
+      "build_time_s": 6.13836,
+      "memory_bytes": 49280
+    },
+    {
+      "params": {
+        "nprobe": 8,
+        "nlist": 32
+      },
+      "latency_ms": 381.34561587100023,
+      "qps": 2.6222931597521635,
+      "avg_recall": 0.99,
+      "min_recall": 0.3,
+      "build_time_s": 5.27424,
+      "memory_bytes": 49280
+    }
+  ]
+}

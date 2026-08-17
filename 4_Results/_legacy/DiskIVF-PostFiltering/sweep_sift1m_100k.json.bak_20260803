@@ -1,0 +1,67 @@
+{
+  "dataset": "sift1m_100k",
+  "method": "DiskIVF",
+  "n_combinations": 5,
+  "sweep_results": [
+    {
+      "params": {
+        "nprobe": 1,
+        "nlist": 32
+      },
+      "latency_ms": 40.24332451700003,
+      "qps": 24.8488416899446,
+      "avg_recall": 0.6122000000000001,
+      "min_recall": 0.0,
+      "build_time_s": 2.68002,
+      "memory_bytes": 16512
+    },
+    {
+      "params": {
+        "nprobe": 2,
+        "nlist": 32
+      },
+      "latency_ms": 64.54076278,
+      "qps": 15.494084000970032,
+      "avg_recall": 0.8037000000000001,
+      "min_recall": 0.0,
+      "build_time_s": 2.4634,
+      "memory_bytes": 16512
+    },
+    {
+      "params": {
+        "nprobe": 4,
+        "nlist": 32
+      },
+      "latency_ms": 120.04666140400003,
+      "qps": 8.33009421756963,
+      "avg_recall": 0.9419,
+      "min_recall": 0.2,
+      "build_time_s": 2.1322,
+      "memory_bytes": 16512
+    },
+    {
+      "params": {
+        "nprobe": 8,
+        "nlist": 32
+      },
+      "latency_ms": 247.80234864999994,
+      "qps": 4.035474261837672,
+      "avg_recall": 0.9943,
+      "min_recall": 0.7,
+      "build_time_s": 2.11903,
+      "memory_bytes": 16512
+    },
+    {
+      "params": {
+        "nprobe": 16,
+        "nlist": 32
+      },
+      "latency_ms": 443.885859364,
+      "qps": 2.252831395514155,
+      "avg_recall": 0.9999,
+      "min_recall": 0.9,
+      "build_time_s": 2.53923,
+      "memory_bytes": 16512
+    }
+  ]
+}

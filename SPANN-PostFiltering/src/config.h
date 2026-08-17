@@ -38,6 +38,9 @@ struct SPANNConfig {
                                        //  with batch_query's OpenMP)
     size_t max_check = 8192;          // head index max check count
     size_t hash_exp = 8;              // BKTree hash table exponent
+    size_t bkt_kmeans_k = 0;          // SelectHead K-means cluster count (0 = SPTAG default 32)
+    size_t search_internal_result_num = 0;  // SSD search internal result cap
+                                             // (0 = SPTAG default 64)
 
     // ── PostFiltering parameters ──
     size_t k = 10;

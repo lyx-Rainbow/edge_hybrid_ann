@@ -67,6 +67,11 @@ public:
     MemoryBreakdown memory_breakdown() const;
     void print_tree_info() const;
 
+    // Post-build compaction: shrink live containers to their actual size and
+    // drop build-only maps, so query-phase RSS reflects the true index
+    // footprint instead of build residue.
+    void compact_memory();
+
     // ── PQ cache statistics ──
     PQBlockCache::Stats pq_cache_stats() const;
     size_t pq_cache_bytes() const;
@@ -120,6 +125,9 @@ private:
 
     // Complex predicate auxiliary
     std::unordered_map<std::string, ext_lid_t> filter_to_label_;
+
+    // Reverse index: vid → set of tids that have access (for accurate find_all_qualified_vecs)
+    std::unordered_map<int_vid_t, std::unordered_set<tid_t>> vid_to_tids_;
 
     // Temp index cache
     std::unordered_map<int_lid_t, std::vector<TempIndexNode>> temp_indexes_;

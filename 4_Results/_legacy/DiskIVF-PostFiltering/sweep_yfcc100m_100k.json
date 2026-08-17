@@ -1,0 +1,55 @@
+{
+  "dataset": "yfcc100m_100k",
+  "method": "DiskIVF",
+  "n_combinations": 4,
+  "sweep_results": [
+    {
+      "params": {
+        "nprobe": 1,
+        "nlist": 32
+      },
+      "latency_ms": 40.987149611,
+      "qps": 24.39789078993732,
+      "avg_recall": 0.6382000000000001,
+      "min_recall": 0.0,
+      "build_time_s": 3.0075,
+      "memory_bytes": 24704
+    },
+    {
+      "params": {
+        "nprobe": 2,
+        "nlist": 32
+      },
+      "latency_ms": 102.17867956399999,
+      "qps": 9.786777479088936,
+      "avg_recall": 0.8039,
+      "min_recall": 0.0,
+      "build_time_s": 3.17748,
+      "memory_bytes": 24704
+    },
+    {
+      "params": {
+        "nprobe": 4,
+        "nlist": 32
+      },
+      "latency_ms": 198.55759108999996,
+      "qps": 5.036322179929808,
+      "avg_recall": 0.9232,
+      "min_recall": 0.0,
+      "build_time_s": 3.13647,
+      "memory_bytes": 24704
+    },
+    {
+      "params": {
+        "nprobe": 8,
+        "nlist": 32
+      },
+      "latency_ms": 357.55293320799996,
+      "qps": 2.796788690916061,
+      "avg_recall": 0.9815999999999999,
+      "min_recall": 0.6,
+      "build_time_s": 2.87973,
+      "memory_bytes": 24704
+    }
+  ]
+}

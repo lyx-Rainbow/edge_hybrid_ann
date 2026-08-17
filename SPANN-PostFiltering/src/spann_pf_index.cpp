@@ -186,8 +186,9 @@ void SPANNPostFilterIndex::load(const std::string& index_dir,
                meta_path.c_str());
     }
 
-    // Re-configure SPTAG parameters (thread count etc.)
-    configure_spann_parameters();
+    // Re-configure SPTAG search parameters (thread count, max_check).
+    // Use set_search_parameters to avoid re-triggering build operations.
+    set_search_parameters(cfg_.max_check, cfg_.overfetch_factor);
 }
 
 // ============================================================================
@@ -212,6 +213,13 @@ void SPANNPostFilterIndex::configure_spann_parameters() {
     // ── Head selection (section "SelectHead") ──
     // CRITICAL: m_selectHead defaults to false — must explicitly enable.
     spann_index_->SetParameter("isExecute", "true", "SelectHead");
+    if (cfg_.bkt_kmeans_k > 0) {
+        // Number of K-means clusters used to select head vectors
+        // (SPTAG default is 32; larger => finer partitioning => higher recall).
+        spann_index_->SetParameter("BKTKmeansK",
+                                   std::to_string(cfg_.bkt_kmeans_k).c_str(),
+                                   "SelectHead");
+    }
 
     // ── Head building (section "BuildHead") ──
     // CRITICAL: m_buildHead defaults to false — must explicitly enable.
@@ -231,6 +239,37 @@ void SPANNPostFilterIndex::configure_spann_parameters() {
                                std::to_string(threads).c_str(), "BuildSSDIndex");
     spann_index_->SetParameter("MaxCheck",
                                std::to_string(cfg_.max_check).c_str(), "BuildSSDIndex");
+    if (cfg_.search_internal_result_num > 0) {
+        // SPTAG caps SSD search candidates at SearchInternalResultNum
+        // (default 64). Raising it lets post-filtering see more candidates,
+        // which directly raises filtered recall.
+        spann_index_->SetParameter("SearchInternalResultNum",
+                                   std::to_string(cfg_.search_internal_result_num).c_str(),
+                                   "BuildSSDIndex");
+    }
+}
+
+// ============================================================================
+// set_search_parameters — safe for post-load reconfiguration
+// ============================================================================
+void SPANNPostFilterIndex::set_search_parameters(size_t max_check,
+                                                   size_t overfetch_factor) {
+    if (!spann_index_) return;
+
+    cfg_.max_check = max_check;
+    cfg_.overfetch_factor = overfetch_factor;
+
+    // Only set search-time knobs on the head index sections.
+    // Do NOT set isExecute — that would re-trigger build operations
+    // and crash on a pre-built loaded index.
+    spann_index_->SetParameter("MaxCheck",
+                               std::to_string(max_check).c_str(), "BuildHead");
+    spann_index_->SetParameter("MaxCheck",
+                               std::to_string(max_check).c_str(), "BuildSSDIndex");
+
+    size_t threads = cfg_.batch_query ? 1 : cfg_.num_threads;
+    spann_index_->SetParameter("NumberOfThreads",
+                               std::to_string(threads).c_str(), "BuildSSDIndex");
 }
 
 // ============================================================================

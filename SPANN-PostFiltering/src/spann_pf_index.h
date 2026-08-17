@@ -63,6 +63,12 @@ public:
     // ── Persistence (load pre-built index) ──
     void load(const std::string& index_dir, const std::string& metadata_path);
 
+    // ── Re-configure SPTAG search parameters (for CLI search-mode sweep) ──
+    void configure_spann_parameters();
+
+    // ── Set search-time parameters only (safe after load — no build re-trigger) ──
+    void set_search_parameters(size_t max_check, size_t overfetch_factor);
+
 private:
     SPANNConfig cfg_;
     size_t ntotal_ = 0;
@@ -92,6 +98,5 @@ private:
     // Read label metadata from binary file.
     void load_metadata(const std::string& path);
 
-    // Configure SPTAG parameters before build/search.
-    void configure_spann_parameters();
+    // (moved to public for CLI search-mode reconfiguration after load)
 };

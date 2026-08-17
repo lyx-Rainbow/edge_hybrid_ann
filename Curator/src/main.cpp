@@ -4,7 +4,10 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <malloc.h>
 #include <string>
+#include <unordered_map>
+#include <unistd.h>
 #include <vector>
 
 #include "cnpy.h"
@@ -21,7 +24,21 @@ using namespace curator;
 
 namespace {
 
-// Minimal JSON output helper (avoids nlohmann/json dependency)
+// ============================================================================
+// RSS sampling helper (Linux /proc/self/statm)
+// ============================================================================
+long get_rss_bytes() {
+    std::ifstream statm("/proc/self/statm");
+    if (!statm.is_open()) return 0;
+    long size_pages = 0, rss_pages = 0;
+    statm >> size_pages >> rss_pages;
+    long page_size = sysconf(_SC_PAGESIZE);
+    return rss_pages * page_size;
+}
+
+// ============================================================================
+// Minimal JSON output helper
+// ============================================================================
 void write_json_results(
         const std::string& path,
         const CuratorConfig& cfg,
@@ -30,9 +47,16 @@ void write_json_results(
         const MemoryBreakdown& mem_brk,
         const std::vector<std::vector<ext_vid_t>>& all_labels,
         const std::vector<std::vector<float>>& all_dists,
-        const std::vector<int32_t>& query_labels) {
+        const std::vector<int32_t>& query_labels,
+        const std::vector<double>& search_times_us,
+        double rss_peak_query_mb,
+        const std::vector<std::string>& cp_filters = {},
+        const std::vector<std::vector<std::vector<ext_vid_t>>>& cp_all_labels = {},
+        const std::vector<std::vector<std::vector<float>>>& cp_all_dists = {},
+        const std::vector<std::vector<double>>& cp_search_times_us = {}) {
     std::ofstream out(path);
     out << "{\n";
+    out << "  \"index\": \"Curator\",\n";
     out << "  \"config\": {\n";
     out << "    \"d\": " << cfg.d << ",\n";
     out << "    \"nlist\": " << cfg.n_clusters << ",\n";
@@ -61,30 +85,74 @@ void write_json_results(
     out << "    \"temp_qualified_vecs_bytes\": " << mem_brk.temp_qualified_vecs_bytes << ",\n";
     out << "    \"total_bytes\": " << mem_brk.total_bytes << "\n";
     out << "  },\n";
-    out << "  \"queries\": [\n";
+    out << "  \"rss_peak_query_mb\": " << rss_peak_query_mb << ",\n";
 
-    for (size_t q = 0; q < all_labels.size(); q++) {
-        out << "    {\n";
-        out << "      \"idx\": " << q << ",\n";
-        int32_t tid = (q < query_labels.size()) ? query_labels[q] : -1;
-        out << "      \"tenant_id\": " << tid << ",\n";
-        out << "      \"labels\": [";
-        for (size_t i = 0; i < all_labels[q].size(); i++) {
-            if (i > 0) out << ", ";
-            out << all_labels[q][i];
+    bool is_batch = !cp_filters.empty();
+
+    if (is_batch) {
+        // ── Batch CP mode: filters_results ──
+        out << "  \"queries\": [],\n";
+        out << "  \"filters_results\": [\n";
+        for (size_t fi = 0; fi < cp_filters.size(); fi++) {
+            out << "    {\n";
+            out << "      \"filter\": \"" << cp_filters[fi] << "\",\n";
+            out << "      \"queries\": [\n";
+            const auto& labels_vec = cp_all_labels[fi];
+            const auto& dists_vec  = cp_all_dists[fi];
+            const auto& times_vec  = cp_search_times_us[fi];
+            for (size_t q = 0; q < labels_vec.size(); q++) {
+                out << "        {\n";
+                out << "          \"idx\": " << q << ",\n";
+                out << "          \"labels\": [";
+                for (size_t i = 0; i < labels_vec[q].size(); i++) {
+                    if (i > 0) out << ", ";
+                    out << labels_vec[q][i];
+                }
+                out << "],\n";
+                out << "          \"distances\": [";
+                for (size_t i = 0; i < dists_vec[q].size(); i++) {
+                    if (i > 0) out << ", ";
+                    out << dists_vec[q][i];
+                }
+                out << "],\n";
+                out << "          \"search_time_us\": " << times_vec[q] << "\n";
+                out << "        }";
+                if (q + 1 < labels_vec.size()) out << ",";
+                out << "\n";
+            }
+            out << "      ]\n";
+            out << "    }";
+            if (fi + 1 < cp_filters.size()) out << ",";
+            out << "\n";
         }
-        out << "],\n";
-        out << "      \"distances\": [";
-        for (size_t i = 0; i < all_dists[q].size(); i++) {
-            if (i > 0) out << ", ";
-            out << all_dists[q][i];
+        out << "  ]\n";
+    } else {
+        // ── Single filter / SL mode: queries ──
+        out << "  \"queries\": [\n";
+        for (size_t q = 0; q < all_labels.size(); q++) {
+            out << "    {\n";
+            out << "      \"idx\": " << q << ",\n";
+            int32_t tid = (q < query_labels.size()) ? query_labels[q] : -1;
+            out << "      \"tenant_id\": " << tid << ",\n";
+            out << "      \"labels\": [";
+            for (size_t i = 0; i < all_labels[q].size(); i++) {
+                if (i > 0) out << ", ";
+                out << all_labels[q][i];
+            }
+            out << "],\n";
+            out << "      \"distances\": [";
+            for (size_t i = 0; i < all_dists[q].size(); i++) {
+                if (i > 0) out << ", ";
+                out << all_dists[q][i];
+            }
+            out << "],\n";
+            out << "      \"search_time_us\": " << search_times_us[q] << "\n";
+            out << "    }";
+            if (q + 1 < all_labels.size()) out << ",";
+            out << "\n";
         }
-        out << "]\n";
-        out << "    }";
-        if (q + 1 < all_labels.size()) out << ",";
-        out << "\n";
+        out << "  ]\n";
     }
-    out << "  ]\n";
     out << "}\n";
     out.close();
 }
@@ -96,7 +164,6 @@ CuratorConfig load_config_from_json(const std::string& path) {
         fprintf(stderr, "Warning: cannot open config file '%s', using defaults\n", path.c_str());
         return cfg;
     }
-    // Simple JSON value parser (handles top-level key:value pairs)
     std::string content((std::istreambuf_iterator<char>(in)),
                         std::istreambuf_iterator<char>());
 
@@ -174,7 +241,8 @@ void print_usage() {
     printf("  --queries PATH         Query vectors .npy file [Q, d] float32\n");
     printf("  --query_labels PATH    Query tenant labels .npy file [Q] int32 (-1=unfiltered)\n");
     printf("  --filter EXPR          Complex predicate filter (e.g. \"1 AND 2\")\n");
-    printf("  --query_filters PATH  Per-query filter expressions file (one per line)\n");
+    printf("  --filters_file PATH    Batch CP: file with one filter per line (mutually exclusive with --filter)\n");
+    printf("  --query_filters PATH   Per-query filter expressions file (one per line)\n");
     printf("  --config PATH          JSON config file (optional, defaults used)\n");
     printf("  --k K                  Number of results per query (default: 10)\n");
     printf("  --batch-query          Enable inter-query OpenMP parallelism\n");
@@ -188,8 +256,9 @@ void print_usage() {
 int main(int argc, char** argv) {
     std::string train_vecs_path, train_access_path, queries_path, query_labels_path;
     std::string config_path, output_path = "results.json";
-    std::string query_filters_path; // per-query filter expressions file (one per line)
-    std::string filter_expr;  // complex predicate (AND/OR/NOT), empty = simple query
+    std::string query_filters_path; // per-query filter expressions file
+    std::string filter_expr;        // single CP filter
+    std::string filters_file_path;  // batch CP filters file
     size_t k = 10;
     bool batch_query = false;
     bool profile = false;
@@ -211,6 +280,7 @@ int main(int argc, char** argv) {
         else if (arg == "--batch-query") batch_query = true;
         else if (arg == "--output" && i + 1 < argc) output_path = argv[++i];
         else if (arg == "--filter" && i + 1 < argc) filter_expr = argv[++i];
+        else if (arg == "--filters_file" && i + 1 < argc) filters_file_path = argv[++i];
         else if (arg == "--query_filters" && i + 1 < argc) query_filters_path = argv[++i];
         else if (arg == "--profile") profile = true;
         else {
@@ -226,6 +296,32 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // ── Read batch filters ──
+    std::vector<std::string> cp_filters;
+    if (!filters_file_path.empty()) {
+        std::ifstream ff(filters_file_path);
+        if (!ff.is_open()) {
+            fprintf(stderr, "Error: cannot open filters_file '%s'\n", filters_file_path.c_str());
+            return 1;
+        }
+        std::string line;
+        while (std::getline(ff, line)) {
+            while (!line.empty() && (line.back() == '\r' || line.back() == ' ' || line.back() == '\t'))
+                line.pop_back();
+            if (!line.empty()) cp_filters.push_back(line);
+        }
+        ff.close();
+        // filters_file takes priority over --filter and --query_filters
+        if (!filter_expr.empty()) {
+            printf("Note: --filters_file provided, ignoring --filter\n");
+            filter_expr.clear();
+        }
+        if (!query_filters_path.empty()) {
+            printf("Note: --filters_file provided, ignoring --query_filters\n");
+            query_filters_path.clear();
+        }
+    }
+
     printf("=== Curator bench mode ===\n");
 
     // Load config
@@ -234,6 +330,15 @@ int main(int argc, char** argv) {
         cfg = load_config_from_json(config_path);
     }
     if (batch_query) cfg.batch_query = true;
+
+    // Limit glibc arenas: K-means/OpenMP temporaries fragment the heap across
+    // many arenas and inflate query-phase RSS. Fewer arenas => tighter heap.
+    mallopt(M_ARENA_MAX, 2);
+    // Route allocations >= 64 KB to mmap: freed mappings return to the OS
+    // immediately, so build-phase temporaries do not linger as heap residual
+    // in the query-phase RSS.
+    mallopt(M_MMAP_THRESHOLD, 64 * 1024);
+    mallopt(M_TRIM_THRESHOLD, 0);
 
     // Load training vectors
     printf("Loading training vectors from %s ...\n", train_vecs_path.c_str());
@@ -259,7 +364,7 @@ int main(int argc, char** argv) {
     size_t n_queries = qv_shape.empty() ? 0 : qv_shape[0];
     printf("  Loaded %zu queries\n", n_queries);
 
-    // Load query labels
+    // Load query labels (optional)
     std::vector<int32_t> query_labels;
     if (!query_labels_path.empty()) {
         std::vector<size_t> ql_shape;
@@ -288,249 +393,337 @@ int main(int argc, char** argv) {
 
     index.flush();
 
+    // Compact live containers so query-phase RSS reflects the true index
+    // footprint (no build residue from vector/map capacity slack).
+    index.compact_memory();
+
+    // Release build-only buffers: Curator is a disk-based index and the query
+    // phase never touches raw training vectors or access pairs. Returning this
+    // memory to the OS drops query-phase RSS to the true index footprint
+    // (matters for the memory comparison figure).
+    std::vector<float>().swap(train_vecs);
+    std::vector<int32_t>().swap(access_pairs);
+    // Return heap high-water (K-means temporaries etc.) to the OS.
+    malloc_trim(0);
+
     auto t_build_end = std::chrono::high_resolution_clock::now();
     double build_time_s = std::chrono::duration<double>(t_build_end - t_build_start).count();
     size_t mem_bytes = index.memory_bytes();
     printf("Build complete: %.2f s, %.2f MB memory\n",
            build_time_s, mem_bytes / (1024.0 * 1024.0));
 
-    // ── Phase 1: Load per-query filters + pre-build all unique predicate indexes ──
-    //
-    // Design rationale:
-    //   Phase 1 runs serially before any search to build filter indexes for all
-    //   unique predicate expressions.  This keeps Phase 2 (the search loop)
-    //   purely const — safe for OpenMP parallel-for in batch_query mode.
-    //
-    // per_query_filter_label[q]:
-    //   -2 = predicate matched 0 vectors → return empty results
-    //   -1 = no complex predicate for this query → fallback to query_labels/unfiltered
-    //   >=0 = filter_label (ext_lid_t) → pass to index.search()
-    //
-    // Priority: per-query filter > global --filter > query_labels[q] > unfiltered
-    //
-
-    // Step 1a: Load per-query filter expressions file (if specified)
-    std::vector<std::string> query_filters;
-    if (!query_filters_path.empty()) {
-        std::ifstream infile(query_filters_path);
-        if (!infile.is_open()) {
-            fprintf(stderr, "Error: cannot open query_filters file '%s'\n",
-                    query_filters_path.c_str());
-            return 1;
-        }
-        std::string line;
-        while (std::getline(infile, line)) {
-            size_t start = line.find_first_not_of(" \t\r\n");
-            if (start == std::string::npos) {
-                query_filters.push_back("");  // empty line = no complex predicate
-            } else {
-                size_t end = line.find_last_not_of(" \t\r\n");
-                query_filters.push_back(line.substr(start, end - start + 1));
-            }
-        }
-        printf("\nLoaded %zu query filter expressions from %s\n",
-               query_filters.size(), query_filters_path.c_str());
-        if (query_filters.size() < n_queries) {
-            printf("Note: query_filters has %zu lines for %zu queries — "
-                   "remaining will use fallback\n",
-                   query_filters.size(), n_queries);
-        }
-    }
-
-    // Step 1b: Pre-build filter indexes for all unique predicates (serial)
-    std::vector<ext_lid_t> per_query_filter_label(n_queries, -1);
-
-    bool has_any_predicate = !filter_expr.empty() || !query_filters.empty();
-    if (has_any_predicate) {
-        printf("\nPre-building filter indexes for complex predicates...\n");
-        std::unordered_map<std::string, ext_lid_t> label_cache;
-
-        for (size_t q = 0; q < n_queries; q++) {
-            // Determine this query's predicate
-            // Priority: per-query filter > global --filter
-            std::string pred;
-            if (q < query_filters.size() && !query_filters[q].empty()) {
-                pred = query_filters[q];
-            } else if (!filter_expr.empty()) {
-                pred = filter_expr;
-            }
-
-            if (pred.empty()) {
-                per_query_filter_label[q] = -1;  // no complex predicate
-                continue;
-            }
-
-            // Check local cache (faster than get_filter_label lookup)
-            auto cache_it = label_cache.find(pred);
-            if (cache_it != label_cache.end()) {
-                per_query_filter_label[q] = cache_it->second;
-                continue;
-            }
-
-            // Check CuratorIndex dedup map
-            ext_lid_t label = index.get_filter_label(pred);
-            if (label >= 0) {
-                per_query_filter_label[q] = label;
-                label_cache[pred] = label;
-                continue;
-            }
-
-            // First encounter: full-scan evaluate + build
-            auto qualified = index.find_all_qualified_vecs(pred);
-            printf("  Predicate '%s': %zu qualified vectors\n",
-                   pred.c_str(), qualified.size());
-
-            if (!qualified.empty()) {
-                label = index.build_filter_index(
-                    pred, qualified.data(), qualified.size());
-                per_query_filter_label[q] = label;
-                label_cache[pred] = label;
-            } else {
-                // sentinel -2: predicate matches nothing; skip search
-                per_query_filter_label[q] = -2;
-                label_cache[pred] = -2;
-                fprintf(stderr,
-                    "  Warning: predicate '%s' matches 0 vectors\n",
-                    pred.c_str());
-            }
-        }
-        printf("Pre-build complete: %zu unique predicates evaluated\n",
-               label_cache.size());
-    }
-
-    // ── Phase 2: Search ──
-    // Safe for OpenMP parallel-for: only const methods called on index.
-    printf("\nSearching %zu queries (k=%zu)...\n", n_queries, k);
-    index.enable_profiling(profile);
-
+    // ── Search ──
     std::vector<std::vector<ext_vid_t>> all_labels(n_queries);
     std::vector<std::vector<float>> all_dists(n_queries);
+    std::vector<double> search_times_us(n_queries, 0.0);
+    double rss_peak_query_mb = 0.0;
 
-    // Reset I/O stats so we only count query-phase I/O
-    index.reset_io_stats();
+    // Batch CP containers
+    std::vector<std::vector<std::vector<ext_vid_t>>> cp_all_labels;
+    std::vector<std::vector<std::vector<float>>> cp_all_dists;
+    std::vector<std::vector<double>> cp_search_times_us;
 
-    auto t_search_start = std::chrono::high_resolution_clock::now();
+    if (!cp_filters.empty()) {
+        // ═══════════════════════════════════════════════════════════
+        // Batch CP mode: one build, N filters. Each filter applied to all queries.
+        // ═══════════════════════════════════════════════════════════
+        printf("\n=== Batch CP search: %zu queries (k=%zu), %zu filters ===\n",
+               n_queries, k, cp_filters.size());
 
-    if (cfg.batch_query) {
+        cp_all_labels.resize(cp_filters.size());
+        cp_all_dists.resize(cp_filters.size());
+        cp_search_times_us.resize(cp_filters.size());
+
+        auto t_search_start = std::chrono::high_resolution_clock::now();
+        long rss_peak = 0;
+
+        for (size_t fi = 0; fi < cp_filters.size(); fi++) {
+            const std::string& filter = cp_filters[fi];
+            printf("  [%zu/%zu] Filter: %s ...", fi + 1, cp_filters.size(), filter.c_str());
+            fflush(stdout);
+
+            // Pre-build filter index for this filter
+            auto qualified = index.find_all_qualified_vecs(filter);
+            printf(" %zu qualified", qualified.size());
+
+            ext_lid_t flabel = -2;  // sentinel: no qualified vectors
+            if (!qualified.empty()) {
+                flabel = index.build_filter_index(filter, qualified.data(), qualified.size());
+            } else {
+                fprintf(stderr, "\n  Warning: filter '%s' matches 0 vectors\n", filter.c_str());
+            }
+
+            auto& labels_vec = cp_all_labels[fi];
+            auto& dists_vec  = cp_all_dists[fi];
+            auto& times_vec  = cp_search_times_us[fi];
+            labels_vec.resize(n_queries);
+            dists_vec.resize(n_queries);
+            times_vec.resize(n_queries, 0.0);
+
+            auto t_filter_start = std::chrono::high_resolution_clock::now();
+
+            if (cfg.batch_query) {
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic)
 #endif
-        for (size_t q = 0; q < n_queries; q++) {
-            all_labels[q].resize(k);
-            all_dists[q].resize(k);
-
-            ext_lid_t flabel = per_query_filter_label[q];
-
-            if (flabel == -2) {
-                // Predicate matched nothing → empty result
-                std::fill(all_labels[q].begin(), all_labels[q].end(), 0);
-                std::fill(all_dists[q].begin(), all_dists[q].end(),
-                          std::numeric_limits<float>::max());
-            } else if (flabel >= 0) {
-                // Complex predicate filter search
-                index.search(query_vecs.data() + q * cfg.d, k, flabel,
-                              all_dists[q].data(), all_labels[q].data());
+                for (size_t q = 0; q < n_queries; q++) {
+                    labels_vec[q].resize(k);
+                    dists_vec[q].resize(k);
+                    auto t0 = std::chrono::high_resolution_clock::now();
+                    if (flabel >= 0) {
+                        index.search(query_vecs.data() + q * cfg.d, k, flabel,
+                                     dists_vec[q].data(), labels_vec[q].data());
+                    } else {
+                        std::fill(labels_vec[q].begin(), labels_vec[q].end(), 0);
+                        std::fill(dists_vec[q].begin(), dists_vec[q].end(),
+                                  std::numeric_limits<float>::max());
+                    }
+                    auto t1 = std::chrono::high_resolution_clock::now();
+                    times_vec[q] = std::chrono::duration<double, std::micro>(t1 - t0).count();
+                }
             } else {
-                // flabel == -1: fallback to simple tenant or unfiltered
-                ext_lid_t tid = (q < query_labels.size()) ?
-                    static_cast<ext_lid_t>(query_labels[q]) : -1;
-                index.search(query_vecs.data() + q * cfg.d, k, tid,
-                              all_dists[q].data(), all_labels[q].data());
+                for (size_t q = 0; q < n_queries; q++) {
+                    labels_vec[q].resize(k);
+                    dists_vec[q].resize(k);
+                    auto t0 = std::chrono::high_resolution_clock::now();
+                    if (flabel >= 0) {
+                        index.search(query_vecs.data() + q * cfg.d, k, flabel,
+                                     dists_vec[q].data(), labels_vec[q].data());
+                    } else {
+                        std::fill(labels_vec[q].begin(), labels_vec[q].end(), 0);
+                        std::fill(dists_vec[q].begin(), dists_vec[q].end(),
+                                  std::numeric_limits<float>::max());
+                    }
+                    auto t1 = std::chrono::high_resolution_clock::now();
+                    times_vec[q] = std::chrono::duration<double, std::micro>(t1 - t0).count();
+
+                    long rss = get_rss_bytes();
+                    if (rss > rss_peak) rss_peak = rss;
+                }
+            }
+
+            auto t_filter_end = std::chrono::high_resolution_clock::now();
+            double filter_s = std::chrono::duration<double>(t_filter_end - t_filter_start).count();
+            printf(" → %.1f s\n", filter_s);
+        }
+
+        auto t_search_end = std::chrono::high_resolution_clock::now();
+        double search_time_s = std::chrono::duration<double>(t_search_end - t_search_start).count();
+        printf("Batch search complete: %.2f s total, %.2f ms/query/filter\n",
+               search_time_s, search_time_s / (n_queries * cp_filters.size()) * 1000.0);
+
+        rss_peak_query_mb = rss_peak / (1024.0 * 1024.0);
+
+    } else if (!filter_expr.empty() || !query_filters_path.empty()) {
+        // ═══════════════════════════════════════════════════════════
+        // Existing CP mode: single global filter or per-query filters
+        // (preserved from original implementation, with per-query timing added)
+        // ═══════════════════════════════════════════════════════════
+        std::vector<std::string> query_filters;
+        if (!query_filters_path.empty()) {
+            std::ifstream infile(query_filters_path);
+            std::string line;
+            while (std::getline(infile, line)) {
+                size_t start = line.find_first_not_of(" \t\r\n");
+                if (start == std::string::npos) {
+                    query_filters.push_back("");
+                } else {
+                    size_t end = line.find_last_not_of(" \t\r\n");
+                    query_filters.push_back(line.substr(start, end - start + 1));
+                }
+            }
+            printf("\nLoaded %zu query filter expressions\n", query_filters.size());
+        }
+
+        std::vector<ext_lid_t> per_query_filter_label(n_queries, -1);
+        bool has_any_predicate = !filter_expr.empty() || !query_filters.empty();
+        if (has_any_predicate) {
+            printf("\nPre-building filter indexes...\n");
+            std::unordered_map<std::string, ext_lid_t> label_cache;
+            for (size_t q = 0; q < n_queries; q++) {
+                std::string pred;
+                if (q < query_filters.size() && !query_filters[q].empty()) {
+                    pred = query_filters[q];
+                } else if (!filter_expr.empty()) {
+                    pred = filter_expr;
+                }
+                if (pred.empty()) continue;
+
+                auto cache_it = label_cache.find(pred);
+                if (cache_it != label_cache.end()) {
+                    per_query_filter_label[q] = cache_it->second;
+                    continue;
+                }
+                ext_lid_t label = index.get_filter_label(pred);
+                if (label >= 0) {
+                    per_query_filter_label[q] = label;
+                    label_cache[pred] = label;
+                    continue;
+                }
+                auto qualified = index.find_all_qualified_vecs(pred);
+                if (!qualified.empty()) {
+                    label = index.build_filter_index(pred, qualified.data(), qualified.size());
+                    per_query_filter_label[q] = label;
+                    label_cache[pred] = label;
+                } else {
+                    per_query_filter_label[q] = -2;
+                    label_cache[pred] = -2;
+                }
+            }
+            printf("Pre-build complete: %zu unique predicates\n", label_cache.size());
+        }
+
+        printf("\nSearching %zu queries (k=%zu)...\n", n_queries, k);
+        index.enable_profiling(profile);
+        index.reset_io_stats();
+
+        long rss_peak = 0;
+        auto t_search_start = std::chrono::high_resolution_clock::now();
+
+        if (cfg.batch_query) {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
+            for (size_t q = 0; q < n_queries; q++) {
+                all_labels[q].resize(k);
+                all_dists[q].resize(k);
+                auto t0 = std::chrono::high_resolution_clock::now();
+                ext_lid_t flabel = per_query_filter_label[q];
+                if (flabel == -2) {
+                    std::fill(all_labels[q].begin(), all_labels[q].end(), 0);
+                    std::fill(all_dists[q].begin(), all_dists[q].end(), std::numeric_limits<float>::max());
+                } else if (flabel >= 0) {
+                    index.search(query_vecs.data() + q * cfg.d, k, flabel,
+                                 all_dists[q].data(), all_labels[q].data());
+                } else {
+                    ext_lid_t tid = (q < query_labels.size()) ? static_cast<ext_lid_t>(query_labels[q]) : -1;
+                    index.search(query_vecs.data() + q * cfg.d, k, tid,
+                                 all_dists[q].data(), all_labels[q].data());
+                }
+                auto t1 = std::chrono::high_resolution_clock::now();
+                search_times_us[q] = std::chrono::duration<double, std::micro>(t1 - t0).count();
+            }
+        } else {
+            for (size_t q = 0; q < n_queries; q++) {
+                all_labels[q].resize(k);
+                all_dists[q].resize(k);
+                auto t0 = std::chrono::high_resolution_clock::now();
+                ext_lid_t flabel = per_query_filter_label[q];
+                if (flabel == -2) {
+                    std::fill(all_labels[q].begin(), all_labels[q].end(), 0);
+                    std::fill(all_dists[q].begin(), all_dists[q].end(), std::numeric_limits<float>::max());
+                } else if (flabel >= 0) {
+                    index.search(query_vecs.data() + q * cfg.d, k, flabel,
+                                 all_dists[q].data(), all_labels[q].data());
+                } else {
+                    ext_lid_t tid = (q < query_labels.size()) ? static_cast<ext_lid_t>(query_labels[q]) : -1;
+                    index.search(query_vecs.data() + q * cfg.d, k, tid,
+                                 all_dists[q].data(), all_labels[q].data());
+                }
+                auto t1 = std::chrono::high_resolution_clock::now();
+                search_times_us[q] = std::chrono::duration<double, std::micro>(t1 - t0).count();
+
+                long rss = get_rss_bytes();
+                if (rss > rss_peak) rss_peak = rss;
             }
         }
-    } else {
-        for (size_t q = 0; q < n_queries; q++) {
-            all_labels[q].resize(k);
-            all_dists[q].resize(k);
 
-            ext_lid_t flabel = per_query_filter_label[q];
-
-            if (flabel == -2) {
-                std::fill(all_labels[q].begin(), all_labels[q].end(), 0);
-                std::fill(all_dists[q].begin(), all_dists[q].end(),
-                          std::numeric_limits<float>::max());
-            } else if (flabel >= 0) {
-                index.search(query_vecs.data() + q * cfg.d, k, flabel,
-                              all_dists[q].data(), all_labels[q].data());
-            } else {
-                ext_lid_t tid = (q < query_labels.size()) ?
-                    static_cast<ext_lid_t>(query_labels[q]) : -1;
-                index.search(query_vecs.data() + q * cfg.d, k, tid,
-                              all_dists[q].data(), all_labels[q].data());
-            }
-        }
-    }
-
-    auto t_search_end = std::chrono::high_resolution_clock::now();
-    double search_time_s = std::chrono::duration<double>(t_search_end - t_search_start).count();
-
-    // ── I/O statistics ──
-    auto flash_s = index.flash_io_stats();
-    auto pq_s    = index.pq_cache_stats();
-
-    printf("\n=== I/O Statistics (Query Phase) ===\n");
-    printf("  Flash Store:\n");
-    printf("    reads:       %lu\n", static_cast<unsigned long>(flash_s.read_count));
-    printf("    bytes:       %lu (%.2f MB)\n",
-           static_cast<unsigned long>(flash_s.bytes_read),
-           flash_s.bytes_read / (1024.0 * 1024.0));
-    printf("    io_time:     %.3f ms\n", flash_s.io_time_ms);
-    printf("  PQ Block Cache:\n");
-    printf("    reads:       %lu\n", static_cast<unsigned long>(pq_s.io_count));
-    printf("    bytes:       %lu (%.2f MB)\n",
-           static_cast<unsigned long>(pq_s.bytes_read),
-           pq_s.bytes_read / (1024.0 * 1024.0));
-    printf("    io_time:     %.3f ms\n", pq_s.io_time_ms);
-    printf("    cache_hits:  %lu\n", static_cast<unsigned long>(pq_s.cache_hits));
-    printf("    cache_misses:%lu\n", static_cast<unsigned long>(pq_s.cache_misses));
-    printf("    hit_rate:    %.1f%%\n", pq_s.hit_rate() * 100.0);
-
-    double total_io_ms = flash_s.io_time_ms + pq_s.io_time_ms;
-    double search_time_ms = search_time_s * 1000.0;
-    double io_pct = (search_time_ms > 0) ? (total_io_ms / search_time_ms * 100.0) : 0.0;
-    printf("  ─────────────────────────────\n");
-    printf("  io_total:      %.3f ms\n", total_io_ms);
-    printf("  search_total:  %.3f ms\n", search_time_ms);
-    printf("  io/search:     %.2f%%\n", io_pct);
-
-    // Report mode
-    bool any_predicate_used = false;
-    for (size_t q = 0; q < n_queries && !any_predicate_used; q++) {
-        if (per_query_filter_label[q] >= 0 || per_query_filter_label[q] == -2)
-            any_predicate_used = true;
-    }
-    if (any_predicate_used || !filter_expr.empty()) {
-        printf("Search complete (filter mode): %.2f s total, %.2f ms/query\n",
-               search_time_s, search_time_s / n_queries * 1000.0);
-    } else {
+        auto t_search_end = std::chrono::high_resolution_clock::now();
+        double search_time_s = std::chrono::duration<double>(t_search_end - t_search_start).count();
         printf("Search complete: %.2f s total, %.2f ms/query\n",
                search_time_s, search_time_s / n_queries * 1000.0);
+
+        rss_peak_query_mb = rss_peak / (1024.0 * 1024.0);
+
+        // I/O stats
+        auto flash_s = index.flash_io_stats();
+        auto pq_s    = index.pq_cache_stats();
+        printf("\n=== I/O Stats ===\n");
+        printf("  Flash: %lu reads, %.2f MB, %.3f ms\n",
+               static_cast<unsigned long>(flash_s.read_count),
+               flash_s.bytes_read / (1024.0 * 1024.0), flash_s.io_time_ms);
+        printf("  PQ:    %lu reads, %.2f MB, %.3f ms (hit_rate=%.1f%%)\n",
+               static_cast<unsigned long>(pq_s.io_count),
+               pq_s.bytes_read / (1024.0 * 1024.0), pq_s.io_time_ms,
+               pq_s.hit_rate() * 100.0);
+
+    } else {
+        // ═══════════════════════════════════════════════════════════
+        // SL mode (no filter): tenant-based or unfiltered search
+        // ═══════════════════════════════════════════════════════════
+        printf("\nSearching %zu queries (k=%zu, type=single-label)...\n", n_queries, k);
+        index.enable_profiling(profile);
+        index.reset_io_stats();
+
+        long rss_peak = 0;
+        auto t_search_start = std::chrono::high_resolution_clock::now();
+
+        if (cfg.batch_query) {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
+            for (size_t q = 0; q < n_queries; q++) {
+                all_labels[q].resize(k);
+                all_dists[q].resize(k);
+                auto t0 = std::chrono::high_resolution_clock::now();
+                ext_lid_t tid = (q < query_labels.size()) ? static_cast<ext_lid_t>(query_labels[q]) : -1;
+                index.search(query_vecs.data() + q * cfg.d, k, tid,
+                             all_dists[q].data(), all_labels[q].data());
+                auto t1 = std::chrono::high_resolution_clock::now();
+                search_times_us[q] = std::chrono::duration<double, std::micro>(t1 - t0).count();
+            }
+        } else {
+            for (size_t q = 0; q < n_queries; q++) {
+                all_labels[q].resize(k);
+                all_dists[q].resize(k);
+                auto t0 = std::chrono::high_resolution_clock::now();
+                ext_lid_t tid = (q < query_labels.size()) ? static_cast<ext_lid_t>(query_labels[q]) : -1;
+                index.search(query_vecs.data() + q * cfg.d, k, tid,
+                             all_dists[q].data(), all_labels[q].data());
+                auto t1 = std::chrono::high_resolution_clock::now();
+                search_times_us[q] = std::chrono::duration<double, std::micro>(t1 - t0).count();
+
+                long rss = get_rss_bytes();
+                if (rss > rss_peak) rss_peak = rss;
+            }
+        }
+
+        auto t_search_end = std::chrono::high_resolution_clock::now();
+        double search_time_s = std::chrono::duration<double>(t_search_end - t_search_start).count();
+        printf("Search complete: %.2f s total, %.2f ms/query\n",
+               search_time_s, search_time_s / n_queries * 1000.0);
+
+        rss_peak_query_mb = rss_peak / (1024.0 * 1024.0);
+
+        // I/O stats
+        auto flash_s = index.flash_io_stats();
+        auto pq_s    = index.pq_cache_stats();
+        printf("\n=== I/O Stats ===\n");
+        printf("  Flash: %lu reads, %.2f MB, %.3f ms\n",
+               static_cast<unsigned long>(flash_s.read_count),
+               flash_s.bytes_read / (1024.0 * 1024.0), flash_s.io_time_ms);
+        printf("  PQ:    %lu reads, %.2f MB, %.3f ms (hit_rate=%.1f%%)\n",
+               static_cast<unsigned long>(pq_s.io_count),
+               pq_s.bytes_read / (1024.0 * 1024.0), pq_s.io_time_ms,
+               pq_s.hit_rate() * 100.0);
     }
 
     // ── Output ──
     printf("\nWriting results to %s ...\n", output_path.c_str());
     MemoryBreakdown mem_brk = index.memory_breakdown();
     write_json_results(output_path, cfg, build_time_s, mem_bytes, mem_brk,
-                       all_labels, all_dists, query_labels);
+                       all_labels, all_dists, query_labels, search_times_us,
+                       rss_peak_query_mb,
+                       cp_filters, cp_all_labels, cp_all_dists, cp_search_times_us);
 
     if (profile) {
         const auto& prof = index.last_profile();
         printf("\nProfiling (last query):\n");
         printf("  query_type: %s\n", prof.query_type);
         printf("  beam_search: %.3f ms\n", prof.beam_search_ms);
-        printf("  frontier_search: %.3f ms (nodes_popped=%d, shortlists=%d, expanded=%d)\n",
-               prof.frontier_search_ms, prof.frontier_nodes_popped,
-               prof.frontier_shortlists_scanned, prof.frontier_children_expanded);
-        if (prof.pq_table_build_ms > 0)
-            printf("  pq_table_build: %.3f ms\n", prof.pq_table_build_ms);
-        if (prof.pq_distance_compute_ms > 0)
-            printf("  pq_distance_compute: %.3f ms\n", prof.pq_distance_compute_ms);
-        printf("  candidate_merge: %.3f ms\n", prof.candidate_merge_ms);
-        printf("  rerank: %.3f ms (count=%d)\n", prof.rerank_ms, prof.rerank_count);
         printf("  total: %.3f ms\n", prof.total_search_ms);
     }
 
-    index.print_tree_info();
     printf("\nDone.\n");
     return 0;
 }

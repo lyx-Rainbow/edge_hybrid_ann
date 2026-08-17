@@ -200,6 +200,8 @@ void CuratorIndex::grant_access(ext_vid_t label, ext_lid_t tenant) {
     int_vid_t vid = vid_map_.get_id(label);
     int_lid_t int_tid = tid_map_.get_or_create_id(tenant);
     grant_access_impl(root_, vid, int_tid);
+    // Maintain reverse index for accurate CP predicate evaluation
+    vid_to_tids_[vid].insert(static_cast<tid_t>(tenant));
 }
 
 void CuratorIndex::grant_access_impl(TreeNode* node, int_vid_t vid, int_lid_t tid) {
@@ -341,6 +343,44 @@ void CuratorIndex::flush() {
         raw_buffer_.clear();
         raw_buffer_.shrink_to_fit();
     }
+}
+
+// ============================================================================
+// Post-build memory compaction
+// ============================================================================
+void CuratorIndex::compact_memory() {
+    std::function<void(TreeNode*)> walk = [&](TreeNode* node) {
+        node->centroid.shrink_to_fit();
+        node->children.shrink_to_fit();
+        node->shortlists.rehash(0);
+        for (auto& kv : node->shortlists) {
+            kv.second.data.shrink_to_fit();
+        }
+        node->vector_indices.data.shrink_to_fit();
+        for (TreeNode* child : node->children) {
+            walk(child);
+        }
+    };
+    if (root_) {
+        walk(root_);
+    }
+
+    // Build-only map: with flash finalized the query path never touches it
+    // (raw-buffer fallback is dead), so drop it entirely.
+    if (flash_finalized_) {
+        std::unordered_map<int_vid_t, size_t>().swap(vid_to_buf_offset_);
+    }
+
+    // Compact the query-time lookup maps.
+    leaf_node_id_to_seq_.rehash(0);
+    vid_to_leaf_id_.rehash(0);
+    vid_to_local_idx_.rehash(0);
+
+    // vid_map_/tid_map_ keep reserve slack in their containers; compact them.
+    vid_map_.label_to_id.rehash(0);
+    vid_map_.id_to_label.rehash(0);
+    tid_map_.label_to_id.rehash(0);
+    tid_map_.id_to_label.shrink_to_fit();
 }
 
 // ============================================================================
@@ -897,21 +937,13 @@ std::vector<int_vid_t> CuratorIndex::find_all_qualified_vecs(
     for (size_t i = 0; i < seq_to_vid_.size(); i++) {
         int_vid_t vid = seq_to_vid_[i];
 
-        // Build access set for this vector
-        std::unordered_set<tid_t> access_set;
-        // Walk up the tree to collect tenant IDs from bloom filters and shortlists
-        TreeNode* leaf = find_assigned_leaf(root_, vid);
-        TreeNode* curr = leaf;
-        while (curr != nullptr) {
-            for (const auto& kv : curr->shortlists) {
-                // Check if this vid is in the shortlist
-                if (kv.second.contains(vid)) {
-                    access_set.insert(kv.first);
-                }
-            }
-            curr = curr->parent;
-        }
-
+        // Use reverse index for accurate predicate evaluation.
+        // The tree traversal approach (walking leaf→root shortlists) can miss
+        // tenant IDs when shortlist splitting distributes entries across branches
+        // not on this vector's assigned leaf path.
+        static const std::unordered_set<tid_t> kEmptySet;
+        auto it = vid_to_tids_.find(vid);
+        const auto& access_set = (it != vid_to_tids_.end()) ? it->second : kEmptySet;
         if (predicate::evaluate_formula(tokens, access_set)) {
             result.push_back(vid);
         }
