@@ -15,8 +15,21 @@ __pycache__/
 4_Results/*/disk_data_build_sweep/
 4_Results/*/disk_data_memprof/
 
+# ===== å®éªŒç»“æœæ•°æ®ä¸å…¥ç‰ˆæœ¬åº“ï¼ˆä»…ä¿ç•™ fig_100k å¯è§†åŒ–è¾“å‡ºï¼‰=====
+4_Results/*
+!4_Results/fig_100k/
+!4_Results/fig_100k/**
+
+# ===== å½’æ¡£åŒºçš„äºŒè¿›åˆ¶ä¸­é—´æ•°æ®ï¼ˆä»…ä¿ç•™ç›®å½•å¼•ç”¨ï¼Œä¸çº³å…¥ç‰ˆæœ¬åº“ï¼‰=====
+4_Results/_legacy/*/disk_data*/
+4_Results/_legacy/*/test_sweep/
+4_Results/_legacy/*/disk_data
+
 # ===== é¡¶å±‚å¤§æ–‡ä»¶ =====
 /curator_flash_20353.bin
+
+# ===== SPTAG ç¡¬ç¼–ç ç´¢å¼•è¾“å‡ºç›®å½•ï¼ˆæ„å»ºæ—¶è‡ªåŠ¨ç”Ÿæˆï¼‰=====
+/SPANN/
 
 # ===== å„ç´¢å¼•æ–¹æ³•çš„ description.md æ–‡æ¡£ =====
 **/description.md
@@ -45,11 +58,3 @@ SPANN-PostFiltering/SPTAG-main/datasets/
 # ===== OS æ–‡ä»¶ =====
 .DS_Store
 Thumbs.db
-
-# ===== ¹éµµÇøµÄ¶ş½øÖÆÖĞ¼äÊı¾İ£¨½ö±£ÁôÄ¿Â¼ÒıÓÃ£¬²»ÄÉÈë°æ±¾¿â£© =====
-4_Results/_legacy/*/disk_data*/
-4_Results/_legacy/*/test_sweep/
-4_Results/_legacy/*/disk_data
-
-# ===== SPTAG Ó²±àÂëË÷ÒıÊä³öÄ¿Â¼£¨¹¹½¨Ê±×Ô¶¯Éú³É£© =====
-/SPANN/

@@ -1,0 +1,9 @@
+{
+  "max_check": [2048, 8192],
+  "overfetch_factor": [25, 100],
+  "fixed": {
+    "overfetch_adaptive": true,
+    "hash_exp": 8,
+    "num_threads": 1
+  }
+}

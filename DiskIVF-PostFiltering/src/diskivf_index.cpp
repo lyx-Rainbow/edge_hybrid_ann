@@ -105,7 +105,7 @@ void DiskIVFIndex::build(size_t n, const float* vectors,
     }
     printf("\n");
 
-    // ── 5. Save centroids + cluster_sizes metadata ──
+    // ── 5. Save centroids + cluster_sizes + metadata ──
     {
         std::string path = disk_dir_ + "/centroids.bin";
         FILE* f = fopen(path.c_str(), "wb");
@@ -120,9 +120,71 @@ void DiskIVFIndex::build(size_t n, const float* vectors,
         fwrite(cluster_sizes_.data(), sizeof(int32_t), cluster_sizes_.size(), f);
         fclose(f);
     }
+    {
+        // metadata.bin: 3 int32_t values for search-mode reload
+        std::string path = disk_dir_ + "/metadata.bin";
+        FILE* f = fopen(path.c_str(), "wb");
+        THROW_IF_NOT_FMT(f, "Cannot open %s for writing", path.c_str());
+        int32_t meta[3] = {static_cast<int32_t>(d_), static_cast<int32_t>(ntotal_),
+                           static_cast<int32_t>(nlist_)};
+        fwrite(meta, sizeof(int32_t), 3, f);
+        fclose(f);
+    }
 
     printf("  Build complete: %zu vectors, %zu clusters, %.2f MB centroids\n",
            ntotal_, nlist_, centroids_.size() * sizeof(float) / (1024.0 * 1024.0));
+}
+
+// ============================================================================
+// Load metadata from pre-built index on disk
+// ============================================================================
+void DiskIVFIndex::load_metadata(const std::string& disk_dir) {
+    disk_dir_ = disk_dir;
+
+    // ── Read metadata.bin ──
+    {
+        std::string path = disk_dir_ + "/metadata.bin";
+        FILE* f = fopen(path.c_str(), "rb");
+        THROW_IF_NOT_FMT(f, "Cannot open metadata.bin for reading: %s", path.c_str());
+        int32_t meta[3] = {0, 0, 0};
+        size_t nread = fread(meta, sizeof(int32_t), 3, f);
+        fclose(f);
+        THROW_IF_NOT_FMT(nread == 3,
+            "metadata.bin truncated: expected 3 int32_t, got %zu", nread);
+        d_ = static_cast<size_t>(meta[0]);
+        ntotal_ = static_cast<size_t>(meta[1]);
+        nlist_ = static_cast<size_t>(meta[2]);
+    }
+
+    // ── Read centroids ──
+    {
+        std::string path = disk_dir_ + "/centroids.bin";
+        FILE* f = fopen(path.c_str(), "rb");
+        THROW_IF_NOT_FMT(f, "Cannot open centroids.bin for reading: %s", path.c_str());
+        fseek(f, 0, SEEK_END);
+        long fsize = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        size_t n_floats = static_cast<size_t>(fsize) / sizeof(float);
+        centroids_.resize(n_floats);
+        size_t nread = fread(centroids_.data(), sizeof(float), n_floats, f);
+        fclose(f);
+        THROW_IF_NOT_FMT(nread == n_floats,
+            "centroids.bin truncated: expected %zu floats, got %zu", n_floats, nread);
+    }
+
+    // ── Read cluster_sizes ──
+    {
+        std::string path = disk_dir_ + "/cluster_sizes.bin";
+        FILE* f = fopen(path.c_str(), "rb");
+        THROW_IF_NOT_FMT(f, "Cannot open cluster_sizes.bin for reading: %s", path.c_str());
+        cluster_sizes_.resize(nlist_);
+        size_t nread = fread(cluster_sizes_.data(), sizeof(int32_t), nlist_, f);
+        fclose(f);
+        THROW_IF_NOT_FMT(nread == nlist_,
+            "cluster_sizes.bin truncated: expected %zu int32_t, got %zu", nlist_, nread);
+    }
+
+    printf("  Metadata loaded: d=%zu, ntotal=%zu, nlist=%zu\n", d_, ntotal_, nlist_);
 }
 
 // ============================================================================

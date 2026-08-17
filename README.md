@@ -54,12 +54,21 @@ bash run.sh curator arxiv_small            # Curator 单次 benchmark
 bash run.sh diskivf yfcc100m_small         # DiskIVF 单次 benchmark
 bash run.sh pre-filter arxiv_small --sweep # Pre-Filtering 参数扫描
 bash run.sh spann yfcc100m_small --sweep   # SPANN 参数扫描
+```
 
-# 或直接使用 Curator Python 实验脚本
-cd Curator
-python python/run_experiment.py --dataset arxiv_small
-python python/run_experiment.py --dataset yfcc100m_small --k 10 --profile
-python python/run_experiment.py --dataset arxiv_small --config /tmp/arxiv_config.json
+### 100K benchmark 统一流程（当前主流程）
+
+```bash
+# 全方法 SL+CP sweep（结果写入 4_Results/{Curator,DiskIVF,SPANN,Pre-Filtering}/sweep_{dataset}.json）
+python3 run_100k_sweep.py --dataset sift1m_100k --method all --run_sl --run_cp
+
+# 增量补跑：只跑清单内的新参数 combo 并合并进现有 sweep JSON（已存在 combo 自动跳过）
+python3 run_incremental.py --method DiskIVF
+python3 run_incremental.py --method Curator
+python3 run_incremental.py --method SPANN
+
+# 折线验收报告（每条 Pareto frontier 的点数/左右端/是否 ≥0.95）
+python3 tests/report_frontier.py
 ```
 
 ### 手动运行 C++ 二进制
@@ -144,6 +153,20 @@ make -j$(nproc)
 | wit | ~3,000,000 | 384 | 1,000 | 1,000 | 完整规模（WIT 文本嵌入） |
 
 数据位于 `1_Data/ground_truth/<dataset>/`。
+
+### 100K 统一规格数据集（当前 benchmark 主力）
+
+| 数据集 | 向量数 | 维度 | 标签数 | 标签方式 | 查询数 |
+|--------|:-----:|:----:|:-----:|---------|:-----:|
+| sift1m_100k | 100,000 | 128 | 100 | random（层次 Bernoulli） | 1,000 |
+| yfcc100m_100k | 100,000 | 192 | 1,000 | natural（Flickr tag） | 1,000 |
+| arxiv_100k | 100,000 | 384 | 99 | natural（学科分类） | 1,000 |
+| gist1m_100k | 100,000 | 960 | 100 | random（层次 Bernoulli） | 500 |
+| wit_100k | 100,000 | 384 | 1,000 | random（层次 Bernoulli） | 1,000 |
+
+- 每个 100k 数据集均含单标签（SL）与复杂谓词（CP）两套 ground truth；
+- 目录：`1_Data/ground_truth/<dataset>_100k/`，规格详见 `1_Data/ground_truth/DATASETS_100K.md`；
+- 100k 的 sweep 配置：`3_Config/*/sweep_100k.json`；实验结果：`4_Results/{Curator,DiskIVF,SPANN,Pre-Filtering}/sweep_*_100k.json`（不入版本库）。
 
 ### 各数据集必需文件
 
@@ -488,15 +511,17 @@ Profiling (last query):
 ```
 new-Baselines/
 ├── README.md                              # 本文件
-├── run.sh                                 # 统一实验入口（4 种索引 × 4 种数据集）
-├── run_all_sweeps.sh                      # 批量参数扫描脚本
+├── run.sh                                 # 旧版全量数据集实验入口（4 种索引 × 4 种数据集）
+├── run_100k_sweep.py                      # ★ 100K 统一 sweep 执行器（SL+CP，全方法）
+├── run_incremental.py                     # ★ 增量补跑器（只跑清单内新 combo，合并进 sweep JSON）
+├── run_night_queue.sh                     # 夜间队列脚本（Curator→SPANN→验收→出图→清理）
 ├── setup_curator.sh                       # [已弃用] 旧版 FAISS-SWIG 构建脚本
 │
 ├── Curator/                               # ★ Curator 独立 C++ 索引
 │   ├── CMakeLists.txt                     #   CMake 构建（仅依赖 OpenMP）
 │   ├── src/                               #   C++ 源码（16 模块）
-│   │   ├── main.cpp                       #     CLI 入口（bench 命令）
-│   │   ├── curator_index.h/.cpp           #     主编排类（构建/搜索/管理）
+│   │   ├── main.cpp                       #     CLI 入口（bench 命令；构建后释放原始向量/堆紧缩）
+│   │   ├── curator_index.h/.cpp           #     主编排类（含 compact_memory() 查询期内存紧缩）
 │   │   ├── common.h                       #     公共基础设施（类型/工具类/异常宏）
 │   │   ├── config.h                       #     配置参数结构体
 │   │   ├── profiling.h                    #     性能分析/内存分解
@@ -513,15 +538,9 @@ new-Baselines/
 │   │   ├── complex_predicate.h/.cpp       #     ★ 复杂谓词解析/求值（RPN）
 │   │   └── cnpy.h/.cpp                    #     .npy 文件读写
 │   ├── python/                            #   Python 实验脚本
-│   │   ├── run_experiment.py              #     实验编排（预处理→C++ bench→recall）
-│   │   ├── preprocess_train.py            #     .pkl → train_access.npy 转换
-│   │   └── prepare_queries.py             #     查询数据准备
 │   ├── legacy/                            #   旧版 FAISS-SWIG 代码（归档，不再使用）
 │   ├── build/                             #   编译产物
-│   ├── EXPERIMENT_GUIDE.md                #   实验操作手册（详细）
-│   ├── LEARNING_GUIDE.md                  #   代码 100% 掌握学习路线
-│   ├── REFACTOR_PLAN.md                   #   重构设计文档
-│   └── PQ_EXTERNAL_STORAGE_PLAN.md        #   PQ 外存改造执行计划
+│   └── EXPERIMENT_GUIDE.md                #   实验操作手册（详细）
 │
 ├── DiskIVF-PostFiltering/                 # DiskIVF 基线（C++ 实现）
 │   ├── CMakeLists.txt
@@ -535,29 +554,17 @@ new-Baselines/
 ├── SPANN-PostFiltering/                   # SPANN 基线（C++ 实现，依赖 SPTAG）
 │   ├── CMakeLists.txt
 │   ├── SPTAG-main/                        #   SPTAG ANN 库（开源代码）
-│   ├── src/  python/  build/  legacy/
+│   └── src/  python/  build/  legacy/
+│       └── src/config.h                   #   额外支持 bkt_kmeans_k / search_internal_result_num
 │
 ├── 1_Data/                                # 数据目录
-│   ├── arxiv/                             #   Arxiv 原始数据
-│   ├── sift1m/  gist1m/                   #   SIFT/GIST 原始数据（HuggingFace 下载）
-│   ├── yfcc100m/                          #   YFCC 原始数据
-│   ├── wit/                               #   WIT 原始 TSV 数据
-│   ├── ground_truth/                      #   预处理后的数据集
-│   │   ├── arxiv/  arxiv_small/           #     arxiv (1.6M / 50K)
-│   │   ├── yfcc100m/  yfcc100m_small/     #     yfcc100m (800K / 50K)
-│   │   ├── sift1m/  sift1m_small/         #     sift1m (1M / 5K)
-│   │   ├── gist1m/  gist1m_small/         #     gist1m (1M / 3K)
-│   │   └── wit/  wit_small/               #     wit (~3M / 50K)
+│   ├── arxiv/  sift1m/  gist1m/           #   原始数据
+│   ├── yfcc100m/  wit/                    #   原始数据
+│   ├── ground_truth/                      #   预处理后的数据集（含 *_100k）
 │   ├── description.md                     #   数据集详细说明文档
 │   ├── ground_truth/description.md        #   Ground Truth 计算流程文档
-│   ├── download_ann_datasets.py           #   ANN 数据集下载工具
-│   ├── prepare_ann_dataset.py             #   ANN 数据集预处理
-│   ├── prepare_small_dataset.py           #   小型数据集生成
-│   ├── prepare_wit_dataset.py             #   WIT 数据集生成（含断点续传）
-│   ├── synthesize_labels.py               #   K-means 合成标签工具
-│   ├── subset_full_queries.py             #   查询子采样工具
-│   ├── gt_computing.py                    #   Ground Truth 计算
-│   └── io_utils.py                        #   数据 IO 工具
+│   ├── ground_truth/DATASETS_100K.md      #   100K 统一规格说明
+│   └── prepare_*.py / compute_cp_gt.py / gt_computing.py  # 数据生成脚本
 │
 ├── 2_Utils/                               # Python 工具库
 │   ├── predicate.py                       #   复杂谓词评估（Python 版）
@@ -567,29 +574,41 @@ new-Baselines/
 │   └── utils.h                            #   C++ 工具头文件
 │
 ├── 3_Config/                              # 实验配置文件
-│   ├── Curator/                           #   Curator 配置（8 数据集 + sweep）
-│   ├── DiskIVF-PostFiltering/             #   DiskIVF 配置
-│   ├── Pre-Filtering/                     #   Pre-Filtering 配置
-│   └── SPANN-PostFiltering/               #   SPANN 配置
+│   ├── Curator/                           #   Curator 配置（8 数据集 + sweep + sweep_100k）
+│   ├── DiskIVF-PostFiltering/             #   DiskIVF 配置（+ sweep_100k）
+│   ├── Pre-Filtering/                     #   Pre-Filtering 配置（+ sweep_100k）
+│   └── SPANN-PostFiltering/               #   SPANN 配置（+ sweep_100k / sweep_100k_reduced）
 │
-├── 4_Results/                             # 实验结果输出
-│   ├── Curator/  DiskIVF-PostFiltering/   #   各方法结果
+├── 4_Results/                             # 实验结果输出（除 fig_100k 外不入版本库）
+│   ├── Curator/  DiskIVF-PostFiltering/   #   各方法结果与中间产物
 │   ├── Pre-Filtering/  SPANN-PostFiltering/
-│   ├── build_time_correct/                #   构建时间修正数据
-│   ├── memory_correct/                    #   内存修正数据
-│   ├── memory_components/                 #   内存组件分解数据
-│   ├── query_profile/                     #   查询性能剖析数据
-│   ├── fig*.svg                           #   论文图表（FIG1-4）
+│   ├── fig_100k/                          #   ★ 100K 可视化输出（PNG + SVG，入库）
+│   │   ├── fig_sl_qps_recall_100k.*       #     SL QPS-Recall 折线（Pareto frontier）
+│   │   ├── fig_cp_qps_recall_100k.*       #     CP QPS-Recall 折线
+│   │   ├── fig_sl_qps_recall_by_bucket.*  #     选择率分面（5×3）
+│   │   ├── fig_memory_100k.*              #     Memory 柱状图（查询期峰值 RSS）
+│   │   └── fig_memory_100k_v2.*           #     Memory v2（Curator 内存优化配置）
+│   ├── memory_tuned/                      #   Curator 内存优化版测量数据
 │   └── RESULTS_ANALYSIS.md                #   结果分析文档
 │
 ├── 5_Plot/                                # 可视化脚本
-│   ├── fig1_sl_latency_recall.py          #   FIG1: Single-Label 延迟-Recall 曲线
-│   ├── fig2_cp_latency_recall.py          #   FIG2: Complex Predicate 延迟-Recall 曲线
-│   ├── fig3_memory.py                     #   FIG3: 内存占用对比
-│   ├── fig4_build_time.py                 #   FIG4: 构建时间对比
-│   └── utils.py                           #   绘图工具函数
+│   ├── fig_sl_qps_recall_100k.py          #   SL QPS-Recall（自适应横轴 + 单调 frontier）
+│   ├── fig_cp_qps_recall_100k.py          #   CP QPS-Recall
+│   ├── fig_sl_qps_recall_by_bucket.py     #   选择率分面
+│   ├── fig_memory_100k.py                 #   Memory（统一 RSS 口径）
+│   ├── fig_memory_100k_v2.py              #   Memory v2（Curator 内存优化配置）
+│   ├── fig1_sl_latency_recall.py          #   [旧] FIG1: 全量数据集 SL
+│   ├── fig2_cp_latency_recall.py          #   [旧] FIG2: 全量数据集 CP
+│   ├── fig3_memory.py                     #   [旧] FIG3: 内存占用对比
+│   ├── fig4_build_time.py                 #   [旧] FIG4: 构建时间对比
+│   └── utils.py                           #   绘图工具函数（INDEX_META 等）
 │
-└── tests/                                 # 诊断与测试脚本
+└── tests/                                 # 诊断与验收脚本
+    ├── report_frontier.py                 #   折线验收报告（点数/左右端/≥0.95）
+    ├── quick_check.py                     #   单个 C++ 输出 JSON 的 recall/QPS 速查
+    ├── run_memory_tuned.py                #   Curator 内存优化版测量
+    ├── test_sir.py                        #   SPTAG SearchInternalResultNum 假设验证
+    └── check_recall.py / prune_empty_entries.py
 ```
 
 ---

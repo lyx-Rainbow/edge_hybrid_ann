@@ -59,6 +59,32 @@ BUILTIN_DEFAULTS = {
         "nlist": 16, "nprobe": 8, "clus_niter": 20,
         "k": 10, "num_warmup": 10,
     },
+    # ── 100K datasets ──
+    "sift1m_100k": {
+        "dataset": "sift1m_100k", "d": 128,
+        "nlist": 32, "nprobe": 16, "clus_niter": 20,
+        "k": 10, "num_warmup": 20,
+    },
+    "yfcc100m_100k": {
+        "dataset": "yfcc100m_100k", "d": 192,
+        "nlist": 32, "nprobe": 16, "clus_niter": 20,
+        "k": 10, "num_warmup": 20,
+    },
+    "arxiv_100k": {
+        "dataset": "arxiv_100k", "d": 384,
+        "nlist": 32, "nprobe": 16, "clus_niter": 20,
+        "k": 10, "num_warmup": 20,
+    },
+    "gist1m_100k": {
+        "dataset": "gist1m_100k", "d": 960,
+        "nlist": 32, "nprobe": 16, "clus_niter": 20,
+        "k": 10, "num_warmup": 20,
+    },
+    "wit_100k": {
+        "dataset": "wit_100k", "d": 384,
+        "nlist": 32, "nprobe": 16, "clus_niter": 20,
+        "k": 10, "num_warmup": 20,
+    },
 }
 
 

@@ -90,6 +90,47 @@ BUILTIN_DEFAULTS = {
         "overfetch_factor": 50, "overfetch_adaptive": True,
         "batch_query": False,
     },
+    # ── 100K datasets ──
+    "sift1m_100k": {
+        "dataset": "sift1m_100k", "d": 128,
+        "dist_method": "L2", "num_threads": 1,
+        "max_check": 8192, "hash_exp": 8,
+        "k": 10, "num_warmup": 20,
+        "overfetch_factor": 50, "overfetch_adaptive": True,
+        "batch_query": False,
+    },
+    "yfcc100m_100k": {
+        "dataset": "yfcc100m_100k", "d": 192,
+        "dist_method": "L2", "num_threads": 1,
+        "max_check": 8192, "hash_exp": 8,
+        "k": 10, "num_warmup": 20,
+        "overfetch_factor": 50, "overfetch_adaptive": True,
+        "batch_query": False,
+    },
+    "arxiv_100k": {
+        "dataset": "arxiv_100k", "d": 384,
+        "dist_method": "L2", "num_threads": 1,
+        "max_check": 8192, "hash_exp": 8,
+        "k": 10, "num_warmup": 20,
+        "overfetch_factor": 50, "overfetch_adaptive": True,
+        "batch_query": False,
+    },
+    "gist1m_100k": {
+        "dataset": "gist1m_100k", "d": 960,
+        "dist_method": "L2", "num_threads": 1,
+        "max_check": 8192, "hash_exp": 8,
+        "k": 10, "num_warmup": 20,
+        "overfetch_factor": 50, "overfetch_adaptive": True,
+        "batch_query": False,
+    },
+    "wit_100k": {
+        "dataset": "wit_100k", "d": 384,
+        "dist_method": "L2", "num_threads": 1,
+        "max_check": 8192, "hash_exp": 8,
+        "k": 10, "num_warmup": 20,
+        "overfetch_factor": 50, "overfetch_adaptive": True,
+        "batch_query": False,
+    },
 }
 
 

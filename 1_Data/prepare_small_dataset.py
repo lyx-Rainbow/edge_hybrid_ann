@@ -15,13 +15,22 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "2_Utils"))
+_script_dir = str(Path(__file__).resolve().parent)
+sys.path.insert(0, _script_dir)                       # 1_Data/ (sibling modules)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "2_Utils"))  # 2_Utils/
+
 from predicate import (  # noqa: E402
     build_inverted_index,
     compute_filter_selectivity,
     compute_qualified_indices,
     evaluate_predicate,
 )
+from prepare_ann_dataset import (  # noqa: E402
+    select_single_label_queries,
+    generate_random_filters as gen_filters_ann,
+    compute_complex_predicate_gt as compute_cp_gt_ann,
+)
+from gt_computing import load_arxiv, load_yfcc1m  # noqa: E402
 
 
 def load_full(dataset: str, data_dir: str):
@@ -66,70 +75,8 @@ def compute_single_label_gt(
     return gt
 
 
-def generate_random_filters(all_labels, n_filters=100, seed=42):
-    rng = np.random.RandomState(seed)
-    labels = np.array(all_labels)
-    filters = []
-
-    def sample(n):
-        return rng.choice(labels, min(n, len(labels)), replace=False).tolist()
-
-    n_each = max(1, n_filters // 5)
-    for _ in range(n_each):
-        l = sample(1); filters.append(f"NOT {l[0]}")
-    for _ in range(n_each):
-        a, b = sample(2); filters.append(f"AND {a} {b}")
-    for _ in range(n_each):
-        a, b = sample(2); filters.append(f"OR {a} {b}")
-    for _ in range(n_each):
-        a, b = sample(2); filters.append(f"AND {a} NOT {b}")
-    rem = n_filters - len(filters)
-    for _ in range(rem):
-        a, b, c = sample(3); filters.append(f"OR {a} OR {b} {c}")
-    return filters[:n_filters]
-
-
-def compute_cp_gt(train_vecs, train_mds, cp_query_vecs, filters, k=10):
-    BLOCK = 50000
-    results = {}
-    selectivities = {}
-    for fi, formula in enumerate(filters):
-        print(f"    [{fi + 1}/{len(filters)}] {formula}", flush=True)
-        qualified = compute_qualified_indices(formula, train_mds)
-        sel = len(qualified) / len(train_vecs)
-        selectivities[formula] = float(sel)
-
-        nq = len(cp_query_vecs)
-        gt = np.full((nq, k), -1, dtype=np.int32)
-        if len(qualified) == 0:
-            results[formula] = gt
-            continue
-
-        for qi in range(nq):
-            q = cp_query_vecs[qi]
-            best_d = np.empty(0, dtype=np.float32)
-            best_i = np.empty(0, dtype=np.int32)
-            for start in range(0, len(qualified), BLOCK):
-                end = min(start + BLOCK, len(qualified))
-                blk = qualified[start:end]
-                dists = np.sum((train_vecs[blk] - q) ** 2, axis=1)
-                keep = min(k, len(dists))
-                if keep < len(dists):
-                    idx = np.argpartition(dists, keep - 1)[:keep]
-                    dists = dists[idx]; blk = blk[idx]
-                if len(best_d) == 0:
-                    best_d = dists; best_i = blk
-                else:
-                    md = np.concatenate([best_d, dists])
-                    mi = np.concatenate([best_i, blk])
-                    keep = min(k, len(md))
-                    idx = np.argpartition(md, keep - 1)[:keep]
-                    idx = idx[np.argsort(md[idx])]
-                    best_d = md[idx]; best_i = mi[idx]
-            if len(best_i) > 0:
-                gt[qi, :len(best_i)] = best_i
-        results[formula] = gt
-    return results, selectivities
+# CP GT helpers: use the canonical implementations from prepare_ann_dataset
+# (imported as gen_filters_ann / compute_cp_gt_ann at top of file)
 
 
 def main():
@@ -143,55 +90,118 @@ def main():
     parser.add_argument("--n_filters", type=int, default=50)
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--from_source", action="store_true",
+                        help="Load from raw source files instead of GT cache")
+    parser.add_argument("--output_name", type=str, default=None,
+                        help="Override output directory name")
+    parser.add_argument("--n_query_pool", type=int, default=20000,
+                        help="Query pool size (from_source mode)")
     args = parser.parse_args()
 
+    ds_name = args.output_name or f"{args.dataset}_small"
     print(f"\n{'='*60}")
-    print(f"Creating small dataset: {args.dataset}_small")
+    print(f"Creating dataset: {ds_name}")
     print(f"  n_train={args.n_train}, n_sl_query={args.n_sl_query}, "
           f"n_cp_query={args.n_cp_query}, n_filters={args.n_filters}")
+    if args.from_source:
+        print(f"  mode=from_source, n_query_pool={args.n_query_pool}")
     print(f"{'='*60}")
 
-    # Load full data
-    print("\nLoading full data...")
-    train_vecs, train_mds, query_vecs, query_labels, query_info, metadata = \
-        load_full(args.dataset, args.data_dir)
-    full_n_train = len(train_vecs)
-    d = metadata["dim"]
-    n_labels = metadata["n_labels"]
-    print(f"  Full train: {full_n_train:,}, queries: {len(query_vecs)}, "
-          f"d={d}, labels={n_labels}")
-
-    # Sample train
     rng = np.random.RandomState(args.seed)
-    train_idx = rng.choice(full_n_train, args.n_train, replace=False)
-    small_train_vecs = train_vecs[train_idx]
-    small_train_mds = [train_mds[i] for i in train_idx]
-    print(f"  Sampled {args.n_train} train vectors")
 
-    # Remap labels to 0..m-1 for the subset
-    active_labels = sorted(set().union(*small_train_mds))
-    label_remap = {old: new for new, old in enumerate(active_labels)}
-    small_train_mds = [[label_remap[l] for l in md] for md in small_train_mds]
-    actual_n_labels = len(active_labels)
-    print(f"  Active labels in subset: {actual_n_labels}")
+    # ================================================================
+    # Load data
+    # ================================================================
+    if args.from_source:
+        # Load from raw source files (e.g. 1_Data/arxiv/*.npy + *.pkl)
+        print("\nLoading from source data...")
+        if args.dataset == "arxiv":
+            train_full, test_full, train_mds_full, test_mds_full, meta = \
+                load_arxiv(args.data_dir)
+        else:
+            train_full, test_full, train_mds_full, test_mds_full, meta = \
+                load_yfcc1m(args.data_dir)
+        d = meta["dim"]
+        n_labels_orig = meta["n_labels"]
+        print(f"  Full train: {len(train_full):,}, test: {len(test_full):,}, "
+              f"d={d}, labels={n_labels_orig}")
 
-    # Sample single-label queries
-    n_sl_avail = min(args.n_sl_query, len(query_vecs))
-    sl_idx = rng.choice(len(query_vecs), n_sl_avail, replace=False)
-    small_query_vecs = query_vecs[sl_idx]
-    # Remap query labels too
-    small_query_labels = np.array(
-        [label_remap.get(int(query_labels[i]), 0) for i in sl_idx],
-        dtype=np.int32,
-    )
-    # Update query_info with remapped labels
-    small_query_info = []
-    for i in sl_idx:
-        info = dict(query_info[i])
-        old_label = info["label"]
-        info["label"] = label_remap.get(old_label, 0)
-        small_query_info.append(info)
-    print(f"  Sampled {n_sl_avail} SL queries")
+        # Sample train
+        train_idx = rng.choice(len(train_full), args.n_train, replace=False)
+        small_train_vecs = train_full[train_idx]
+        small_train_mds = [train_mds_full[i] for i in train_idx]
+        print(f"  Sampled {args.n_train} train vectors")
+
+        # Remap labels
+        active_labels = sorted(set().union(*small_train_mds))
+        label_remap = {old: new for new, old in enumerate(active_labels)}
+        small_train_mds = [[label_remap[l] for l in md] for md in small_train_mds]
+        actual_n_labels = len(active_labels)
+        print(f"  Active labels in subset: {actual_n_labels}")
+
+        # Query pool: sample from test split
+        pool_size = min(args.n_query_pool, len(test_full))
+        pool_idx = rng.choice(len(test_full), pool_size, replace=False)
+        query_pool_vecs = test_full[pool_idx]
+        query_pool_mds = [test_mds_full[i] for i in pool_idx]
+        # Remap query pool labels too
+        query_pool_mds = [[label_remap.get(l, 0) for l in md]
+                          for md in query_pool_mds]
+        print(f"  Query pool: {pool_size:,} vectors")
+
+        # Build inverted index
+        print("\nBuilding inverted index...")
+        label_to_indices = build_inverted_index(small_train_mds, actual_n_labels)
+
+        # Stratified SL query selection
+        print(f"Selecting {args.n_sl_query} single-label queries "
+              f"(stratified by selectivity)...")
+        small_query_vecs, small_query_labels, small_query_info = \
+            select_single_label_queries(
+                query_pool_vecs, query_pool_mds, small_train_mds,
+                label_to_indices, n_queries=args.n_sl_query, seed=args.seed,
+            )
+        n_sl_avail = len(small_query_labels)
+        print(f"  Selected {n_sl_avail} queries")
+    else:
+        # Legacy mode: load from existing GT directory
+        print("\nLoading from existing GT directory...")
+        train_vecs, train_mds, query_vecs, query_labels, query_info, metadata = \
+            load_full(args.dataset, args.data_dir)
+        full_n_train = len(train_vecs)
+        d = metadata["dim"]
+        n_labels_orig = metadata["n_labels"]
+        print(f"  Full train: {full_n_train:,}, queries: {len(query_vecs)}, "
+              f"d={d}, labels={n_labels_orig}")
+
+        # Sample train
+        train_idx = rng.choice(full_n_train, args.n_train, replace=False)
+        small_train_vecs = train_vecs[train_idx]
+        small_train_mds = [train_mds[i] for i in train_idx]
+        print(f"  Sampled {args.n_train} train vectors")
+
+        # Remap labels
+        active_labels = sorted(set().union(*small_train_mds))
+        label_remap = {old: new for new, old in enumerate(active_labels)}
+        small_train_mds = [[label_remap[l] for l in md] for md in small_train_mds]
+        actual_n_labels = len(active_labels)
+        print(f"  Active labels in subset: {actual_n_labels}")
+
+        # Legacy: random sampling from existing queries
+        n_sl_avail = min(args.n_sl_query, len(query_vecs))
+        sl_idx = rng.choice(len(query_vecs), n_sl_avail, replace=False)
+        small_query_vecs = query_vecs[sl_idx]
+        small_query_labels = np.array(
+            [label_remap.get(int(query_labels[i]), 0) for i in sl_idx],
+            dtype=np.int32,
+        )
+        small_query_info = []
+        for i in sl_idx:
+            info = dict(query_info[i])
+            old_label = info["label"]
+            info["label"] = label_remap.get(old_label, 0)
+            small_query_info.append(info)
+        print(f"  Sampled {n_sl_avail} SL queries (random from existing)")
 
     # Build inverted index
     print("\nBuilding inverted index...")
@@ -206,26 +216,31 @@ def main():
     )
     print(f"  Done in {time.perf_counter() - t0:.1f}s")
 
-    # Complex-predicate GT
-    filters = generate_random_filters(
+    # Complex-predicate GT (use canonical implementation from prepare_ann_dataset)
+    filters = gen_filters_ann(
         list(range(actual_n_labels)), n_filters=args.n_filters, seed=args.seed,
     )
     print(f"\nComputing complex-predicate GT ({len(filters)} filters)...")
 
-    cp_idx = rng.choice(len(query_vecs), min(args.n_cp_query, len(query_vecs)),
-                        replace=False)
-    cp_query_vecs = query_vecs[cp_idx]
+    # Select CP queries from the FULL query pool (not just the SL-selected subset)
+    cp_rng = np.random.RandomState(args.seed + 1)
+    if args.from_source:
+        _cp_pool = query_pool_vecs
+    else:
+        _cp_pool = query_vecs  # original full queries from GT directory
+    n_cp_avail = min(args.n_cp_query, len(_cp_pool))
+    cp_idx = cp_rng.choice(len(_cp_pool), n_cp_avail, replace=False)
+    cp_query_vecs = _cp_pool[cp_idx]
 
     t0 = time.perf_counter()
-    cp_gt, cp_selectivities = compute_cp_gt(
+    cp_gt, cp_selectivities = compute_cp_gt_ann(
         small_train_vecs, small_train_mds, cp_query_vecs, filters, k=args.k,
     )
     t_cp = time.perf_counter() - t0
     print(f"  Done in {t_cp:.1f}s ({t_cp / 60:.1f} min)")
 
     # Save
-    small_name = f"{args.dataset}_small"
-    output_dir = Path(args.data_dir) / "ground_truth" / small_name
+    output_dir = Path(args.data_dir) / "ground_truth" / ds_name
     output_dir.mkdir(parents=True, exist_ok=True)
 
     np.save(output_dir / "train_vecs.npy", small_train_vecs)
@@ -255,16 +270,20 @@ def main():
         np.save(cp_dir / "query_indices.npy", cp_idx)
 
     # Metadata
+    meta_out = {
+        "dim": int(d),
+        "n_labels": actual_n_labels,
+        "dataset": ds_name,
+        "n_queries": n_sl_avail,
+        "k": args.k,
+        "train_size": args.n_train,
+        "label_method": "natural",
+        "avg_labels_per_vec": None,  # natural — varies per vector
+        "n_filters": len(filters),
+        "n_cp_queries": len(cp_query_vecs),
+    }
     with open(output_dir / "metadata.json", "w") as f:
-        json.dump({
-            **metadata,
-            "dataset": small_name,
-            "n_labels": actual_n_labels,
-            "n_train_sampled": args.n_train,
-            "n_sl_query_sampled": n_sl_avail,
-            "n_cp_query_sampled": len(cp_query_vecs),
-            "n_filters": len(filters),
-        }, f, indent=2)
+        json.dump(meta_out, f, indent=2)
 
     all_labels = sorted(set().union(*small_train_mds))
     with open(output_dir / "all_labels.json", "w") as f:

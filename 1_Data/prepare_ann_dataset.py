@@ -213,13 +213,46 @@ def evaluate_predicate(tokens: list[str], mds: list[int]) -> bool:
 
 
 def generate_random_filters(all_labels: list[int], n_filters: int = 100,
-                            seed: int = 42) -> list[str]:
-    """Generate a diverse set of complex predicate filters."""
+                            seed: int = 42,
+                            label_selectivities: dict | None = None,
+                            ) -> list[str]:
+    """Generate a diverse set of complex predicate filters.
+
+    When ``label_selectivities`` is provided (dict mapping label → selectivity),
+    AND filters are sampled such that at least one operand comes from a
+    high-selectivity label (≥0.10).  This ensures AND filters span a meaningful
+    selectivity range instead of all falling below 0.1 %.
+    """
     rng = np.random.RandomState(seed)
     labels = np.array(all_labels)
 
+    # Build stratified pools when selectivity data is available
+    if label_selectivities:
+        high_sel = [l for l in all_labels
+                    if label_selectivities.get(l, 0.0) >= 0.10]
+        if len(high_sel) < 2:
+            high_sel = all_labels  # fallback: treat all as high-sel
+    else:
+        high_sel = all_labels
+
     def sample_labels(n):
         return rng.choice(labels, min(n, len(labels)), replace=False).tolist()
+
+    def sample_and_labels():
+        """Sample two labels.  ~50 % of the time both come from the high-sel
+        pool (→ AND selectivity > 1 %), the rest have one high + one any."""
+        if label_selectivities and len(high_sel) >= 2:
+            if rng.random() < 0.5 and len(high_sel) >= 2:
+                # Both high-sel → AND selectivity = s1 × s2 (typically > 1 %)
+                a, b = rng.choice(high_sel, 2, replace=False)
+            else:
+                # One high, one any
+                a = rng.choice(high_sel)
+                b = rng.choice(labels)
+                while b == a:
+                    b = rng.choice(labels)
+            return [int(a), int(b)]
+        return sample_labels(2)
 
     n_each = max(1, n_filters // 5)
     filters = []
@@ -228,17 +261,23 @@ def generate_random_filters(all_labels: list[int], n_filters: int = 100,
     for _ in range(n_each):
         lab = sample_labels(1)
         filters.append(f"NOT {lab[0]}")
-    # AND filters
+    # AND filters — biased toward high-sel labels
     for _ in range(n_each):
-        a, b = sample_labels(2)
+        a, b = sample_and_labels()
         filters.append(f"AND {a} {b}")
     # OR filters
     for _ in range(n_each):
         a, b = sample_labels(2)
         filters.append(f"OR {a} {b}")
-    # AND NOT filters
+    # AND NOT filters — biased toward high-sel for the first operand
     for _ in range(n_each):
-        a, b = sample_labels(2)
+        if label_selectivities:
+            a = rng.choice(high_sel)
+            b = rng.choice(labels)
+            while b == a:
+                b = rng.choice(labels)
+        else:
+            a, b = sample_labels(2)
         filters.append(f"AND {a} NOT {b}")
     # OR 3 labels
     remaining = n_filters - len(filters)
@@ -350,6 +389,17 @@ def prepare_dataset(
     small_mode: bool = False,
     n_train_small: int = 50000,
     n_query_pool_small: int = 5000,
+    output_name: str | None = None,
+    distribution: str = "hierarchical",
+    n_coarse: int | None = None,
+    n_fine: int | None = None,
+    coarse_sel_min: float = 0.15,
+    coarse_sel_max: float = 0.40,
+    fine_sel_min: float = 0.001,
+    fine_sel_max: float = 0.05,
+    zipf_alpha: float = 1.5,
+    coarse_labels_per_vec: int = 1,
+    fine_labels_per_vec: int = 2,
 ):
     """Main pipeline: prepare a SIFT1M/GIST1M-like dataset for Curator benchmark.
 
@@ -374,8 +424,13 @@ def prepare_dataset(
     print(f"Preparing dataset: {dataset}")
     print(f"{'='*60}")
 
-    # For small mode, output to a separate dataset name (e.g. "sift1m_small")
-    output_dataset = dataset + "_small" if small_mode else dataset
+    # Determine output dataset name
+    if output_name:
+        output_dataset = output_name
+    elif small_mode:
+        output_dataset = dataset + "_small"
+    else:
+        output_dataset = dataset
 
     # Determine read limits for small mode (avoids loading 3.8GB GIST file)
     max_base = n_train_small if small_mode else None
@@ -448,10 +503,24 @@ def prepare_dataset(
         train_mds = synthesize_labels_random(
             n_train, n_labels=n_labels,
             avg_labels_per_vec=avg_labels_per_vec, seed=seed,
+            distribution=distribution,
+            n_coarse=n_coarse, n_fine=n_fine,
+            coarse_sel_min=coarse_sel_min, coarse_sel_max=coarse_sel_max,
+            fine_sel_min=fine_sel_min, fine_sel_max=fine_sel_max,
+            zipf_alpha=zipf_alpha,
+            coarse_labels_per_vec=coarse_labels_per_vec,
+            fine_labels_per_vec=fine_labels_per_vec,
         )
         query_mds = synthesize_labels_random(
             n_query_pool, n_labels=n_labels,
             avg_labels_per_vec=avg_labels_per_vec, seed=seed + 1,
+            distribution=distribution,
+            n_coarse=n_coarse, n_fine=n_fine,
+            coarse_sel_min=coarse_sel_min, coarse_sel_max=coarse_sel_max,
+            fine_sel_min=fine_sel_min, fine_sel_max=fine_sel_max,
+            zipf_alpha=zipf_alpha,
+            coarse_labels_per_vec=coarse_labels_per_vec,
+            fine_labels_per_vec=fine_labels_per_vec,
         )
     else:
         raise ValueError(f"Unknown label_method: {label_method}")
@@ -538,8 +607,14 @@ def prepare_dataset(
         print(f"  Selected {cp_pool_size} queries from query pool")
 
         all_labels_list = sorted(all_train_labels)
+        # Compute per-label selectivity for stratified filter generation
+        _label_sels = {
+            lab: len(label_to_indices[lab]) / n_train
+            for lab in all_labels_list
+        }
         filters = generate_random_filters(
             all_labels_list, n_filters=n_filters, seed=seed,
+            label_selectivities=_label_sels,
         )
         print(f"  Generated {len(filters)} filters")
 
@@ -607,6 +682,19 @@ def prepare_dataset(
         "label_method": label_method,
         "avg_labels_per_vec": avg_labels_per_vec,
     }
+    if label_method == "random":
+        metadata["distribution"] = distribution
+        metadata["zipf_alpha"] = zipf_alpha
+        if distribution == "hierarchical":
+            # Record the actual n_coarse/n_fine used by the algorithm
+            _avg_cs = (coarse_sel_min + coarse_sel_max) / 2.0
+            _actual_nc = n_coarse or max(2, int(2.0 * coarse_labels_per_vec / _avg_cs))
+            metadata["n_coarse"] = min(_actual_nc, n_labels)
+            metadata["n_fine"] = (n_fine or (n_labels - metadata["n_coarse"]))
+            metadata["coarse_sel_min"] = coarse_sel_min
+            metadata["coarse_sel_max"] = coarse_sel_max
+            metadata["fine_sel_min"] = fine_sel_min
+            metadata["fine_sel_max"] = fine_sel_max
     if small_mode:
         metadata["small_mode"] = True
         metadata["n_train_original"] = int(
@@ -679,6 +767,22 @@ def main():
                         help="Small mode: subsample data for fast verification")
     parser.add_argument("--n_train_small", type=int, default=50000)
     parser.add_argument("--n_query_pool_small", type=int, default=5000)
+    parser.add_argument("--output_name", type=str, default=None,
+                        help="Override output directory name")
+    parser.add_argument("--distribution", type=str, default="hierarchical",
+                        choices=["uniform", "skewed", "hierarchical"],
+                        help="Selectivity distribution for random labels")
+    parser.add_argument("--n_coarse", type=int, default=None,
+                        help="Number of coarse labels (hierarchical)")
+    parser.add_argument("--n_fine", type=int, default=None,
+                        help="Number of fine labels (hierarchical)")
+    parser.add_argument("--coarse_sel_min", type=float, default=0.15)
+    parser.add_argument("--coarse_sel_max", type=float, default=0.40)
+    parser.add_argument("--fine_sel_min", type=float, default=0.001)
+    parser.add_argument("--fine_sel_max", type=float, default=0.05)
+    parser.add_argument("--zipf_alpha", type=float, default=1.5)
+    parser.add_argument("--coarse_labels_per_vec", type=int, default=1)
+    parser.add_argument("--fine_labels_per_vec", type=int, default=2)
     args = parser.parse_args()
 
     prepare_dataset(
@@ -697,6 +801,17 @@ def main():
         small_mode=args.small,
         n_train_small=args.n_train_small,
         n_query_pool_small=args.n_query_pool_small,
+        output_name=args.output_name,
+        distribution=args.distribution,
+        n_coarse=args.n_coarse,
+        n_fine=args.n_fine,
+        coarse_sel_min=args.coarse_sel_min,
+        coarse_sel_max=args.coarse_sel_max,
+        fine_sel_min=args.fine_sel_min,
+        fine_sel_max=args.fine_sel_max,
+        zipf_alpha=args.zipf_alpha,
+        coarse_labels_per_vec=args.coarse_labels_per_vec,
+        fine_labels_per_vec=args.fine_labels_per_vec,
     )
 
 

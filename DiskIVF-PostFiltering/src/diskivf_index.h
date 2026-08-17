@@ -29,6 +29,10 @@ public:
     void build(size_t n, const float* vectors,
                const int32_t* access_pairs, size_t n_pairs);
 
+    // ── Persistence: load metadata from a pre-built index on disk ──
+    // Reads centroids.bin, cluster_sizes.bin, metadata.bin from disk_dir.
+    void load_metadata(const std::string& disk_dir);
+
     // ── Single-label search ──
     void search(const float* query, size_t k, int32_t tenant_id,
                 float* distances, int32_t* labels) const;

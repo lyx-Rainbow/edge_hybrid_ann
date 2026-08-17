@@ -289,12 +289,18 @@ ErrorCode VectorIndex::SaveIndexConfig(std::shared_ptr<Helper::DiskIO> p_configO
         IOSTRING(p_configOut, WriteString, "\n");
     }
 
-    IOSTRING(p_configOut, WriteString, "[Index]\n");
-    IOSTRING(p_configOut, WriteString,
-             ("IndexAlgoType=" + Helper::Convert::ConvertToString(GetIndexAlgoType()) + "\n").c_str());
-    IOSTRING(p_configOut, WriteString,
-             ("ValueType=" + Helper::Convert::ConvertToString(GetVectorValueType()) + "\n").c_str());
-    IOSTRING(p_configOut, WriteString, "\n");
+    // SPANN: [Index] section is emitted by SPANN's own SaveConfig (SPANNIndex.cpp).
+    // The head index SaveConfig also emits [Index], causing a duplicate section that
+    // SimpleIniReader rejects. Skip the base-class [Index] for SPANN to avoid this.
+    if (GetIndexAlgoType() != IndexAlgoType::SPANN)
+    {
+        IOSTRING(p_configOut, WriteString, "[Index]\n");
+        IOSTRING(p_configOut, WriteString,
+                 ("IndexAlgoType=" + Helper::Convert::ConvertToString(GetIndexAlgoType()) + "\n").c_str());
+        IOSTRING(p_configOut, WriteString,
+                 ("ValueType=" + Helper::Convert::ConvertToString(GetVectorValueType()) + "\n").c_str());
+        IOSTRING(p_configOut, WriteString, "\n");
+    }
 
     return SaveConfig(p_configOut);
 }

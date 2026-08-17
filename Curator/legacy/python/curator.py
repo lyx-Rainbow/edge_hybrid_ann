@@ -381,6 +381,7 @@ class Curator(Index):
 
         self.index.build_index_for_filter(  # type: ignore[attr-defined]
             qualified_labels,
+            len(qualified_labels),
             predicate,
         )
         label = self.index.get_filter_label(predicate)

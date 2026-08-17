@@ -218,6 +218,14 @@ ErrorCode Index<T>::LoadIndexData(const std::vector<std::shared_ptr<Helper::Disk
 
 template <typename T> ErrorCode Index<T>::SaveConfig(std::shared_ptr<Helper::DiskIO> p_configOut)
 {
+    // Write [Index] section here (base class skips it for SPANN to avoid duplicate).
+    IOSTRING(p_configOut, WriteString, "[Index]\n");
+    IOSTRING(p_configOut, WriteString,
+             ("IndexAlgoType=" + SPTAG::Helper::Convert::ConvertToString(IndexAlgoType::SPANN) + "\n").c_str());
+    IOSTRING(p_configOut, WriteString,
+             ("ValueType=" + SPTAG::Helper::Convert::ConvertToString(GetVectorValueType()) + "\n").c_str());
+    IOSTRING(p_configOut, WriteString, "\n");
+
     IOSTRING(p_configOut, WriteString, "[Base]\n");
 #define DefineBasicParameter(VarName, VarType, DefaultValue, RepresentStr)                                             \
     IOSTRING(p_configOut, WriteString,                                                                                 \
@@ -248,7 +256,9 @@ template <typename T> ErrorCode Index<T>::SaveConfig(std::shared_ptr<Helper::Dis
 #include "inc/Core/SPANN/ParameterDefinitionList.h"
 #undef DefineBuildHeadParameter
 
-    m_index->SaveConfig(p_configOut);
+    // NOTE: Do NOT call m_index->SaveConfig(p_configOut) here — the head index
+    // already saves its own indexloader.ini into the HeadIndex subdirectory via
+    // SaveIndex. Inlining it would write a duplicate [Index] section.
 
     Helper::Convert::ConvertStringTo<int>(m_index->GetParameter("HashTableExponent").c_str(), m_options.m_hashExp);
     IOSTRING(p_configOut, WriteString, "[BuildSSDIndex]\n");
