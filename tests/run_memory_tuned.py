@@ -24,6 +24,21 @@ COMBOS = {
     "wit_100k":      {"pq_M": 128, "search_ef": 4096},
 }
 
+# Query subset: peak query-phase RSS is reached within a few queries, so we
+# measure on a small subset (fast; recall is irrelevant for this figure).
+N_QUERIES = 300
+
+# Memory-lean index configuration (memory figure only; other figures keep
+# their own configs). Fewer/larger leaves (max_leaf_size) cut the per-node
+# container overhead; tight bloom params shrink per-node filters.
+MEM_OVERRIDES = {
+    "n_clusters": 16,
+    "bf_capacity": 256,
+    "bf_false_pos": 0.1,
+    "pq_cache_max_blocks": 32,
+    "max_leaf_size": 768,
+}
+
 OUT_PATH = ROOT / "4_Results/memory_tuned/curator_v2.json"
 
 
@@ -36,16 +51,13 @@ def main():
     sweep_cfg = json.load(open(ROOT / "3_Config/Curator/sweep_100k.json"))
     fixed = sweep_cfg["fixed"]
 
+    import numpy as np
     for ds in datasets:
         combo = COMBOS[ds]
         print(f"=== {ds} {combo} ===", flush=True)
         base_cfg = dict(fixed)
         base_cfg.update(combo)
-        # Memory-optimized index parameters (this figure is allowed to use a
-        # different index configuration than the QPS-recall figures):
-        base_cfg["n_clusters"] = 16
-        base_cfg["bf_false_pos"] = 0.05
-        base_cfg["pq_cache_max_blocks"] = 32
+        base_cfg.update(MEM_OVERRIDES)
         base_cfg["flash_path"] = str(ROOT / "4_Results/Curator"
                                      / f"disk_data_mem_v2_{ds}")
         tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json",
@@ -55,11 +67,20 @@ def main():
 
         out = ROOT / "4_Results/Curator" / f"_mem_v2_{ds}.json"
         gt_dir = ROOT / "1_Data/ground_truth" / ds
+        # Small query subset (efficient; recall irrelevant for memory figure)
+        import tempfile as _tf
+        sub_dir = _tf.mkdtemp(prefix="memv2q_")
+        qpath = sub_dir
+        qv = np.load(gt_dir / "query_vecs.npy")[:N_QUERIES]
+        ql = np.load(gt_dir / "query_labels.npy")[:N_QUERIES]
+        qv_f = Path(sub_dir) / "query_vecs.npy"; ql_f = Path(sub_dir) / "query_labels.npy"
+        np.save(qv_f, qv); np.save(ql_f, ql)
+
         cmd = [str(R.BINARIES["Curator"]), "bench",
                "--train_vecs", str(gt_dir / "train_vecs.npy"),
                "--train_access", str(gt_dir / "train_access.npy"),
-               "--queries", str(gt_dir / "query_vecs.npy"),
-               "--query_labels", str(gt_dir / "query_labels.npy"),
+               "--queries", str(qv_f),
+               "--query_labels", str(ql_f),
                "--k", "10", "--output", str(out),
                "--config", tmp.name]
         print("CMD:", " ".join(cmd), flush=True)
