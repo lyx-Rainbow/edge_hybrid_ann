@@ -1,0 +1,20 @@
+{
+  "max_check": [
+    2048,
+    4096,
+    8192,
+    16384
+  ],
+  "overfetch_factor": [
+    10,
+    25,
+    50,
+    100
+  ],
+  "fixed": {
+    "overfetch_adaptive": false,
+    "hash_exp": 10,
+    "bkt_kmeans_k": 64,
+    "num_threads": 1
+  }
+}

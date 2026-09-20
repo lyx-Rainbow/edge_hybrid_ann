@@ -1,0 +1,40 @@
+{
+  "fixed": {
+    "n_clusters": 32,
+    "bf_capacity": 1000,
+    "bf_false_pos": 0.001,
+    "max_sl_size": 256,
+    "clus_niter": 20,
+    "max_leaf_size": 128,
+    "pq_nbits": 8,
+    "pq_enabled": true,
+    "pq_use_adc_rerank": true,
+    "pq_rerank_topk_factor": 4,
+    "persist_pq_codes": true,
+    "pq_cache_block_size": 256,
+    "pq_cache_max_blocks": 4096,
+    "use_flash_storage": true,
+    "nprobe": 8,
+    "prune_thres": 0.0,
+    "variance_boost": 0.2,
+    "beam_size": 4,
+    "use_temp_index_caching": false,
+    "batch_query": false
+  },
+  "search_params": {
+    "search_ef": [
+      8192,
+      16384,
+      32768,
+      65536
+    ]
+  },
+  "build_params": {
+    "pq_M": {
+      "arxiv": [
+        192
+      ]
+    }
+  },
+  "_comment": "full-scale arxiv sweep"
+}

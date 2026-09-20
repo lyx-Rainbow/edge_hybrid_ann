@@ -45,7 +45,7 @@ struct SPANNConfig {
     // ── PostFiltering parameters ──
     size_t k = 10;
     size_t num_warmup = 20;
-    size_t overfetch_factor = 50;     // fixed overfetch: k' = k * factor
+    double overfetch_factor = 50;     // fixed overfetch: k' = k * factor (may be fractional)
     bool overfetch_adaptive = true;   // adaptive overfetch based on selectivity
     bool batch_query = false;
 

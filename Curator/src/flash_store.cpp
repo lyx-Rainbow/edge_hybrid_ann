@@ -26,6 +26,7 @@ bool FlashStore::open(const std::string& path) {
         std::filesystem::create_directories(parent);
     }
 
+    path_ = path;
     fp_ = std::fopen(path.c_str(), "w+b");
     if (!fp_) {
         throw std::runtime_error("FlashStore: cannot open file: " + path +
@@ -39,6 +40,13 @@ void FlashStore::close() {
         std::fclose(fp_);
         fp_ = nullptr;
     }
+}
+
+size_t FlashStore::file_size() const {
+    if (path_.empty()) return 0;
+    std::error_code ec;
+    auto sz = std::filesystem::file_size(path_, ec);
+    return ec ? 0 : static_cast<size_t>(sz);
 }
 
 void FlashStore::write_vector(size_t offset, const float* vec, size_t d) {

@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include <malloc.h>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unistd.h>
@@ -44,6 +45,7 @@ void write_json_results(
         const CuratorConfig& cfg,
         double build_time_s,
         size_t memory_bytes,
+        size_t disk_bytes,
         const MemoryBreakdown& mem_brk,
         const std::vector<std::vector<ext_vid_t>>& all_labels,
         const std::vector<std::vector<float>>& all_dists,
@@ -67,6 +69,7 @@ void write_json_results(
     out << "  },\n";
     out << "  \"build_time_s\": " << build_time_s << ",\n";
     out << "  \"memory_bytes\": " << memory_bytes << ",\n";
+    out << "  \"disk_bytes\": " << disk_bytes << ",\n";
     out << "  \"memory_breakdown\": {\n";
     out << "    \"num_tree_nodes\": " << mem_brk.num_tree_nodes << ",\n";
     out << "    \"tree_node_attrs_bytes\": " << mem_brk.tree_node_attrs_bytes << ",\n";
@@ -246,6 +249,7 @@ void print_usage() {
     printf("  --config PATH          JSON config file (optional, defaults used)\n");
     printf("  --k K                  Number of results per query (default: 10)\n");
     printf("  --batch-query          Enable inter-query OpenMP parallelism\n");
+    printf("  --ef-list LIST         Comma-separated search_ef values; build once then search each\n");
     printf("  --output PATH          Output JSON results file (default: results.json)\n");
     printf("  --profile              Enable profiling output\n");
     printf("  --help                 Show this help\n");
@@ -259,6 +263,7 @@ int main(int argc, char** argv) {
     std::string query_filters_path; // per-query filter expressions file
     std::string filter_expr;        // single CP filter
     std::string filters_file_path;  // batch CP filters file
+    std::string ef_list_str;        // comma-separated search_ef list for multi-search mode
     size_t k = 10;
     bool batch_query = false;
     bool profile = false;
@@ -282,6 +287,7 @@ int main(int argc, char** argv) {
         else if (arg == "--filter" && i + 1 < argc) filter_expr = argv[++i];
         else if (arg == "--filters_file" && i + 1 < argc) filters_file_path = argv[++i];
         else if (arg == "--query_filters" && i + 1 < argc) query_filters_path = argv[++i];
+        else if (arg == "--ef-list" && i + 1 < argc) ef_list_str = argv[++i];
         else if (arg == "--profile") profile = true;
         else {
             fprintf(stderr, "Unknown option: %s\n", arg.c_str());
@@ -319,6 +325,16 @@ int main(int argc, char** argv) {
         if (!query_filters_path.empty()) {
             printf("Note: --filters_file provided, ignoring --query_filters\n");
             query_filters_path.clear();
+        }
+    }
+
+    // Parse optional multi-search_ef list for build-once multi-search mode.
+    std::vector<size_t> ef_list;
+    if (!ef_list_str.empty()) {
+        std::stringstream ss(ef_list_str);
+        std::string item;
+        while (std::getline(ss, item, ',')) {
+            if (!item.empty()) ef_list.push_back(std::stoull(item));
         }
     }
 
@@ -397,6 +413,13 @@ int main(int argc, char** argv) {
     // footprint (no build residue from vector/map capacity slack).
     index.compact_memory();
 
+    // A single-label workload never touches the predicate-only maps.  Release
+    // them so the memory overhead figure reflects the actual SL query path.
+    if (cp_filters.empty() && filter_expr.empty() &&
+        query_filters_path.empty()) {
+        index.release_predicate_structures();
+    }
+
     // Release build-only buffers: Curator is a disk-based index and the query
     // phase never touches raw training vectors or access pairs. Returning this
     // memory to the OS drops query-phase RSS to the true index footprint
@@ -422,6 +445,122 @@ int main(int argc, char** argv) {
     std::vector<std::vector<std::vector<ext_vid_t>>> cp_all_labels;
     std::vector<std::vector<std::vector<float>>> cp_all_dists;
     std::vector<std::vector<double>> cp_search_times_us;
+
+    // ── Build-once, multi-search_ef mode (SL only) ──
+    // Keeps the built Curator index in memory and writes one result file per
+    // search_ef value. This does not change the search algorithm; it only
+    // avoids rebuilding the index for every search_ef.
+    if (!ef_list.empty() && cp_filters.empty()) {
+        for (size_t ef : ef_list) {
+            index.set_search_ef(ef);
+            std::vector<std::vector<ext_vid_t>> out_labels(n_queries);
+            std::vector<std::vector<float>> out_dists(n_queries);
+            std::vector<double> out_times(n_queries, 0.0);
+            long rss_peak = 0;
+            printf("\nSearching %zu queries (k=%zu, ef=%zu, type=single-label)...\n",
+                   n_queries, k, ef);
+            index.enable_profiling(profile);
+            index.reset_io_stats();
+            auto t_search_start = std::chrono::high_resolution_clock::now();
+            for (size_t q = 0; q < n_queries; q++) {
+                out_labels[q].resize(k);
+                out_dists[q].resize(k);
+                auto t0 = std::chrono::high_resolution_clock::now();
+                ext_lid_t tid = (q < query_labels.size()) ? static_cast<ext_lid_t>(query_labels[q]) : -1;
+                index.search(query_vecs.data() + q * cfg.d, k, tid,
+                             out_dists[q].data(), out_labels[q].data());
+                auto t1 = std::chrono::high_resolution_clock::now();
+                out_times[q] = std::chrono::duration<double, std::micro>(t1 - t0).count();
+                long rss = get_rss_bytes();
+                if (rss > rss_peak) rss_peak = rss;
+            }
+            auto t_search_end = std::chrono::high_resolution_clock::now();
+            double search_time_s = std::chrono::duration<double>(t_search_end - t_search_start).count();
+            printf("  ef=%zu search done: %.2f s, %.2f ms/query\n",
+                   ef, search_time_s, search_time_s / n_queries * 1000.0);
+            double rss_mb = rss_peak / (1024.0 * 1024.0);
+
+            std::string out_path = output_path;
+            size_t dot = out_path.find(".json");
+            if (dot != std::string::npos) out_path.insert(dot, "_ef" + std::to_string(ef));
+            MemoryBreakdown mem_brk = index.memory_breakdown();
+            write_json_results(out_path, cfg, build_time_s, mem_bytes, index.disk_bytes(),
+                               mem_brk, out_labels, out_dists, query_labels, out_times,
+                               rss_mb);
+            printf("  Saved %s\n", out_path.c_str());
+        }
+        return 0;
+    }
+
+    // ── Build-once multi-search_ef CP mode ──
+    // Final Curator CP sweeps use one filter per case-study, so the index can
+    // be built once and searched with several search_ef values.  This keeps the
+    // CP and SL search parameters on the same index build and avoids rebuilding
+    // the disk index for every CP point.
+    if (!ef_list.empty() && !cp_filters.empty() && cp_filters.size() == 1) {
+        const std::string& filter = cp_filters[0];
+        printf("\n=== Batch CP multi-search_ef search: %zu queries, filter=%s ===\n",
+               n_queries, filter.c_str());
+
+        auto qualified = index.find_all_qualified_vecs(filter);
+        ext_lid_t flabel = -2;
+        if (!qualified.empty()) {
+            flabel = index.build_filter_index(filter, qualified.data(), qualified.size());
+        } else {
+            fprintf(stderr, "  Warning: filter '%s' matches 0 vectors\n", filter.c_str());
+        }
+
+        std::vector<std::vector<ext_vid_t>> no_labels;
+        std::vector<std::vector<float>> no_dists;
+        std::vector<double> no_times;
+
+        for (size_t ef : ef_list) {
+            index.set_search_ef(ef);
+            std::vector<std::vector<ext_vid_t>> labels_vec(n_queries);
+            std::vector<std::vector<float>> dists_vec(n_queries);
+            std::vector<double> times_vec(n_queries, 0.0);
+            long rss_peak = 0;
+
+            printf("  Searching ef=%zu ...\n", ef);
+            auto t_search_start = std::chrono::high_resolution_clock::now();
+            for (size_t q = 0; q < n_queries; q++) {
+                labels_vec[q].resize(k);
+                dists_vec[q].resize(k);
+                auto t0 = std::chrono::high_resolution_clock::now();
+                if (flabel >= 0) {
+                    index.search(query_vecs.data() + q * cfg.d, k, flabel,
+                                 dists_vec[q].data(), labels_vec[q].data());
+                } else {
+                    std::fill(labels_vec[q].begin(), labels_vec[q].end(), 0);
+                    std::fill(dists_vec[q].begin(), dists_vec[q].end(),
+                              std::numeric_limits<float>::max());
+                }
+                auto t1 = std::chrono::high_resolution_clock::now();
+                times_vec[q] = std::chrono::duration<double, std::micro>(t1 - t0).count();
+                long rss = get_rss_bytes();
+                if (rss > rss_peak) rss_peak = rss;
+            }
+            auto t_search_end = std::chrono::high_resolution_clock::now();
+            double search_time_s = std::chrono::duration<double>(t_search_end - t_search_start).count();
+            printf("  ef=%zu search done: %.2f s, %.2f ms/query\n",
+                   ef, search_time_s, search_time_s / n_queries * 1000.0);
+
+            std::string cur_path = output_path;
+            size_t dot = cur_path.find(".json");
+            if (dot != std::string::npos) cur_path.insert(dot, "_ef" + std::to_string(ef));
+
+            std::vector<std::vector<std::vector<ext_vid_t>>> cp_labels = {labels_vec};
+            std::vector<std::vector<std::vector<float>>> cp_dists = {dists_vec};
+            std::vector<std::vector<double>> cp_times = {times_vec};
+            MemoryBreakdown mem_brk = index.memory_breakdown();
+            write_json_results(cur_path, cfg, build_time_s, mem_bytes, index.disk_bytes(),
+                               mem_brk, no_labels, no_dists, query_labels, no_times,
+                               rss_peak / (1024.0 * 1024.0),
+                               cp_filters, cp_labels, cp_dists, cp_times);
+            printf("  Saved %s\n", cur_path.c_str());
+        }
+        return 0;
+    }
 
     if (!cp_filters.empty()) {
         // ═══════════════════════════════════════════════════════════
@@ -711,7 +850,7 @@ int main(int argc, char** argv) {
     // ── Output ──
     printf("\nWriting results to %s ...\n", output_path.c_str());
     MemoryBreakdown mem_brk = index.memory_breakdown();
-    write_json_results(output_path, cfg, build_time_s, mem_bytes, mem_brk,
+    write_json_results(output_path, cfg, build_time_s, mem_bytes, index.disk_bytes(), mem_brk,
                        all_labels, all_dists, query_labels, search_times_us,
                        rss_peak_query_mb,
                        cp_filters, cp_all_labels, cp_all_dists, cp_search_times_us);

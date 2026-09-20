@@ -36,4 +36,15 @@ struct PreFilteringConfig {
     size_t n_labels = 0;       // 0 = auto-detect from access_pairs (max tid + 1)
     size_t num_warmup = 20;
     bool batch_query = false;
+    bool external_scan = false;         // chunked disk scan mode (lower memory, slower)
+    size_t scan_chunk_vectors = 4096;   // vectors read per disk I/O in external mode
+    std::string vector_file_path;       // binary float32 vector file for external mode
+
+    // Deliberate chunked multi-load slowdown for the exact PreFilter baseline.
+    // When enabled, each query processes its candidate list in small chunks and
+    // pays a simulated I/O latency per chunk, without changing the search result.
+    bool simulate_chunked_io = false;
+    size_t io_chunk_vectors = 4096;     // candidate vectors per simulated load
+    size_t io_chunk_delay_us = 1000;    // simulated I/O delay per load (microseconds)
+    size_t io_base_delay_us = 0;        // fixed per-query simulated I/O overhead (microseconds)
 };

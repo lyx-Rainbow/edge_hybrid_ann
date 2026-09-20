@@ -37,5 +37,9 @@ struct DiskIVFConfig {
     size_t k = 10;
     size_t num_warmup = 20;
     bool batch_query = false;
+    // Memory-overhead experiment mode: load all probed clusters into memory
+    // before scanning instead of streaming one cluster at a time.  This does
+    // not change query results; it only changes the query-time memory profile.
+    bool preload_clusters = false;
     std::string disk_dir;      // cluster file storage directory
 };

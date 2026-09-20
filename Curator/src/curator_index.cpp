@@ -165,6 +165,37 @@ void CuratorIndex::add_vector(const float* x, ext_vid_t label) {
 
     // Assign to leaf
     TreeNode* leaf = assign_to_leaf(root_, x, d);
+    if (leaf->vector_indices.size() >= MAX_LEAF_SIZE) {
+        std::vector<TreeNode*> stack{root_};
+        size_t leaves = 0, max_leaf = 0, over_target = 0;
+        size_t total = 0, max_level = 0;
+        while (!stack.empty()) {
+            TreeNode* node = stack.back();
+            stack.pop_back();
+            if (node->children.empty()) {
+                size_t leaf_size = node->vector_indices.size();
+                leaves++;
+                total += leaf_size;
+                if (leaf_size > max_leaf) max_leaf = leaf_size;
+                if (leaf_size > cfg_.max_leaf_size) over_target++;
+                if (node->level > max_level) max_level = node->level;
+            } else {
+                for (TreeNode* child : node->children) stack.push_back(child);
+            }
+        }
+        fprintf(stderr,
+                "LEAF OVERFLOW ntotal=%zu trigger_size=%zu trigger_level=%zu "
+                "trigger_node=%llu leaves=%zu max_leaf=%zu over_target=%zu "
+                "total_in_leaves=%zu max_level=%zu cfg_max_leaf=%zu "
+                "max_capacity=%zu\n",
+                ntotal_, leaf->vector_indices.size(), leaf->level,
+                static_cast<unsigned long long>(leaf->node_id),
+                leaves, max_leaf, over_target, total, max_level,
+                cfg_.max_leaf_size, MAX_LEAF_SIZE);
+        CURATOR_THROW_FMT("Curator leaf capacity exceeded: trigger=%zu "
+                          "max_leaf=%zu over_target=%zu",
+                          leaf->vector_indices.size(), max_leaf, over_target);
+    }
 
     // Compute vid with path encoding
     auto offset = sizeof(int_vid_t) * 8 -
@@ -241,13 +272,52 @@ void CuratorIndex::batch_grant_access(const std::vector<int_vid_t>& vids, int_li
 void CuratorIndex::flush() {
     size_t d = cfg_.d;
 
+    // Collect leaves in DFS order once. This is the canonical "global cluster tree"
+    // leaf layout used both for flash vectors and PQ codes on disk.
+    std::vector<TreeNode*> leaves;
+    std::function<void(TreeNode*)> dfs = [&](TreeNode* node) {
+        if (node->children.empty()) {
+            leaves.push_back(node);
+        } else {
+            for (auto* child : node->children) {
+                dfs(child);
+            }
+        }
+    };
+    dfs(root_);
+
     // ── Train PQ + encode + write to disk + open block cache ──
     if (cfg_.pq_enabled && ntotal_ > 0) {
         pq_.train(ntotal_, raw_buffer_.data(), d, cfg_.pq_M, cfg_.pq_nbits);
 
-        // Encode all vectors → temporary local buffer
+        // Reorder the PQ-code sequence to match the cluster-tree leaf layout:
+        // all vectors of one leaf are contiguous, and neighbouring leaves are adjacent.
+        seq_to_vid_.clear();
+        seq_to_vid_.reserve(ntotal_);
+        vid_to_seq_.clear();
+        vid_to_seq_.reserve(ntotal_);
+        for (const auto* leaf : leaves) {
+            for (int_vid_t vid : leaf->vector_indices.data) {
+                vid_to_seq_[vid] = seq_to_vid_.size();
+                seq_to_vid_.push_back(vid);
+            }
+        }
+
+        // Build a leaf-ordered raw vector buffer so encode_all writes codes in this order.
+        std::vector<float> ordered_raw;
+        ordered_raw.reserve(ntotal_ * d);
+        for (int_vid_t vid : seq_to_vid_) {
+            auto it = vid_to_buf_offset_.find(vid);
+            CURATOR_ASSERT_FMT(it != vid_to_buf_offset_.end(), "missing raw buffer for vid");
+            const float* src = raw_buffer_.data() + it->second;
+            ordered_raw.insert(ordered_raw.end(), src, src + d);
+        }
+
+        // Encode all vectors → temporary local buffer (in leaf order)
         std::vector<std::vector<uint8_t>> codes;
-        pq_.encode_all(ntotal_, raw_buffer_.data(), codes);
+        pq_.encode_all(ntotal_, ordered_raw.data(), codes);
+        ordered_raw.clear();
+        ordered_raw.shrink_to_fit();
 
         // Determine PQ codes file path
         // v5 §20: include this pointer to avoid same-process multi-instance collision
@@ -285,19 +355,8 @@ void CuratorIndex::flush() {
 
     // ── Finalize flash storage ──
     if (cfg_.use_flash_storage && ntotal_ > 0) {
-        // DFS traverse leaves, assign sequential IDs
-        std::vector<TreeNode*> leaves;
-        std::function<void(TreeNode*)> dfs = [&](TreeNode* node) {
-            if (node->children.empty()) {
-                leaves.push_back(node);
-            } else {
-                for (auto* child : node->children) {
-                    dfs(child);
-                }
-            }
-        };
-        dfs(root_);
-
+        // Leaves were already collected in DFS order at the beginning of flush();
+        // use the same layout for the full-precision flash file and PQ file.
         num_leaves_ = leaves.size();
         leaf_region_size_ = cfg_.max_leaf_size * d * sizeof(float);
 
@@ -381,6 +440,18 @@ void CuratorIndex::compact_memory() {
     vid_map_.id_to_label.rehash(0);
     tid_map_.label_to_id.rehash(0);
     tid_map_.id_to_label.shrink_to_fit();
+}
+
+// ============================================================================
+// Release predicate-only structures
+// ============================================================================
+void CuratorIndex::release_predicate_structures() {
+    // vid_to_tids_ and seq_to_vid_ are only used by
+    // find_all_qualified_vecs() when building a CP filter index.  They are not
+    // touched by single-label search, so an SL-only deployment can free them
+    // after build and substantially reduce query-phase RSS.
+    std::unordered_map<int_vid_t, std::unordered_set<tid_t>>().swap(vid_to_tids_);
+    std::vector<int_vid_t>().swap(seq_to_vid_);
 }
 
 // ============================================================================
@@ -1004,6 +1075,19 @@ void CuratorIndex::get_label_to_vid_mapping(
 // ============================================================================
 size_t CuratorIndex::memory_bytes() const {
     return memory_breakdown().total_bytes;
+}
+
+size_t CuratorIndex::disk_bytes() const {
+    size_t total = 0;
+    if (flash_.is_open()) {
+        total += flash_.file_size();
+    }
+    if (!pq_.pq_file_path().empty()) {
+        std::error_code ec;
+        auto sz = std::filesystem::file_size(pq_.pq_file_path(), ec);
+        if (!ec) total += static_cast<size_t>(sz);
+    }
+    return total;
 }
 
 MemoryBreakdown CuratorIndex::memory_breakdown() const {

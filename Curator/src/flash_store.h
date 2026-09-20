@@ -26,6 +26,10 @@ public:
 
     bool is_open() const { return fp_ != nullptr; }
 
+    // ── File info ──
+    const std::string& path() const { return path_; }
+    size_t file_size() const;
+
     // ── I/O statistics ──
     struct Stats {
         uint64_t read_count  = 0;   // pread() call count
@@ -64,6 +68,7 @@ public:
 
 private:
     FILE* fp_ = nullptr;
+    std::string path_;
 
     // I/O statistics (mutable: updated in const read methods)
     mutable std::mutex stats_mutex_;

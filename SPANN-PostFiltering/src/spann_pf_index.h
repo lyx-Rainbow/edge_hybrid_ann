@@ -67,7 +67,7 @@ public:
     void configure_spann_parameters();
 
     // ── Set search-time parameters only (safe after load — no build re-trigger) ──
-    void set_search_parameters(size_t max_check, size_t overfetch_factor);
+    void set_search_parameters(size_t max_check, double overfetch_factor);
 
 private:
     SPANNConfig cfg_;

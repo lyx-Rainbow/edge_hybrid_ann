@@ -8,6 +8,7 @@
 //   - Search (unfiltered): brute-force L2 on all vectors
 #pragma once
 #include <cstdint>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -16,6 +17,7 @@
 class PreFilteringIndex {
 public:
     explicit PreFilteringIndex(const PreFilteringConfig& cfg);
+    ~PreFilteringIndex();
 
     // ── Build ──
     // vectors:       [n × d] float32, row-major contiguous
@@ -62,8 +64,15 @@ private:
     std::vector<std::vector<int32_t>> label_to_vids_;     // label → vid list (inverted, single-label)
     std::vector<std::vector<int32_t>> vid_to_labels_;     // vid → label list (forward, predicate eval)
 
+    // External-scan mode: raw vectors live on disk and are read in small chunks.
+    FILE* vector_fp_ = nullptr;
+
     // Core search helper: brute-force L2 among candidates
     void search_candidates(const float* query, size_t k,
                            const std::vector<int32_t>& candidates,
                            float* distances, int32_t* labels) const;
+    void search_candidates_external(const float* query, size_t k,
+                                    const std::vector<int32_t>& candidates,
+                                    float* distances, int32_t* labels) const;
+    void simulate_chunked_io(size_t n_cands) const;
 };

@@ -79,10 +79,25 @@ void SPANNPostFilterIndex::build(size_t n, const float* vectors,
         total_label_assignments_++;
     }
 
-    // Sort each vector's label list (enables binary_search for PostFilter)
+    // Sort and de-duplicate each vector's label list (enables binary_search
+    // for PostFilter and avoids over-counting label density).
     for (auto& labels : vid_to_labels_) {
         if (!labels.empty()) {
             std::sort(labels.begin(), labels.end());
+            labels.erase(std::unique(labels.begin(), labels.end()), labels.end());
+        }
+    }
+
+    // Recompute label counts from the de-duplicated per-vector lists so that
+    // adaptive overfetch uses the true unique-vector selectivity.
+    std::fill(label_counts_.begin(), label_counts_.end(), 0);
+    total_label_assignments_ = 0;
+    for (const auto& labels : vid_to_labels_) {
+        for (int32_t lbl : labels) {
+            if (lbl >= 0 && static_cast<size_t>(lbl) < label_counts_.size()) {
+                label_counts_[lbl]++;
+                total_label_assignments_++;
+            }
         }
     }
 
@@ -128,6 +143,15 @@ void SPANNPostFilterIndex::build(size_t n, const float* vectors,
     printf("  SPTAG build complete: %.2f s, %zu samples\n",
            build_s, spann_index_->GetNumSamples());
 
+    // Force the head KDT index to L2 as well.  The head KDT default is Cosine
+    // and the SPANN wrapper does not reliably inherit the configured L2 metric.
+    {
+        auto spann_typed = static_cast<SPTAG::SPANN::Index<float>*>(spann_index_.get());
+        if (spann_typed && spann_typed->GetMemoryIndex()) {
+            spann_typed->GetMemoryIndex()->SetParameter("DistCalcMethod", "L2");
+        }
+    }
+
     // ── Step 3: Save SPTAG index + metadata ──
     if (!cfg_.index_dir.empty()) {
         printf("  Saving SPTAG index to %s ...\n", cfg_.index_dir.c_str());
@@ -171,6 +195,22 @@ void SPANNPostFilterIndex::load(const std::string& index_dir,
                   static_cast<int>(ec));
     }
 
+    // Force the distance method to the configured value on load.  The SPANN
+    // index object does not reliably initialize its compute function from the
+    // saved config, so explicitly set L2 here as well.
+    {
+        auto spann_typed = static_cast<SPTAG::SPANN::Index<float>*>(spann_index_.get());
+        if (spann_typed) {
+            spann_typed->GetOptions()->m_distCalcMethod = SPTAG::DistCalcMethod::L2;
+            spann_typed->SetParameter("DistCalcMethod", "L2", "Base");
+            if (spann_typed->GetMemoryIndex()) {
+                spann_typed->GetMemoryIndex()->SetParameter("DistCalcMethod", "L2");
+            }
+        } else {
+            spann_index_->SetParameter("DistCalcMethod", "L2", "Base");
+        }
+    }
+
     // Extract metadata from loaded index
     ntotal_ = spann_index_->GetNumSamples();
     d_ = spann_index_->GetFeatureDim();
@@ -202,7 +242,16 @@ void SPANNPostFilterIndex::configure_spann_parameters() {
     std::string dist = cfg_.dist_method.empty() ? "L2" : cfg_.dist_method;
 
     // ── Base parameters (section "Base") ──
-    spann_index_->SetParameter("DistCalcMethod", dist.c_str(), "Base");
+    // Some SPANN initialization paths leave the distance method uninitialized;
+    // write the option directly before SetParameter so the compute function is
+    // rebuilt from the explicitly requested value.
+    auto spann_typed = static_cast<SPTAG::SPANN::Index<float>*>(spann_index_.get());
+    if (spann_typed) {
+        spann_typed->GetOptions()->m_distCalcMethod = SPTAG::DistCalcMethod::L2;
+        spann_typed->SetParameter("DistCalcMethod", dist.c_str(), "Base");
+    } else {
+        spann_index_->SetParameter("DistCalcMethod", dist.c_str(), "Base");
+    }
     spann_index_->SetParameter("NumberOfThreads",
                                std::to_string(threads).c_str(), "Base");
     if (!cfg_.index_dir.empty()) {
@@ -253,7 +302,7 @@ void SPANNPostFilterIndex::configure_spann_parameters() {
 // set_search_parameters — safe for post-load reconfiguration
 // ============================================================================
 void SPANNPostFilterIndex::set_search_parameters(size_t max_check,
-                                                   size_t overfetch_factor) {
+                                                   double overfetch_factor) {
     if (!spann_index_) return;
 
     cfg_.max_check = max_check;
@@ -267,6 +316,14 @@ void SPANNPostFilterIndex::set_search_parameters(size_t max_check,
     spann_index_->SetParameter("MaxCheck",
                                std::to_string(max_check).c_str(), "BuildSSDIndex");
 
+    if (cfg_.search_internal_result_num > 0) {
+        // This is the key post-filter recall knob: it controls how many SSD
+        // candidates are produced internally before label filtering.
+        spann_index_->SetParameter("SearchInternalResultNum",
+                                   std::to_string(cfg_.search_internal_result_num).c_str(),
+                                   "BuildSSDIndex");
+    }
+
     size_t threads = cfg_.batch_query ? 1 : cfg_.num_threads;
     spann_index_->SetParameter("NumberOfThreads",
                                std::to_string(threads).c_str(), "BuildSSDIndex");
@@ -279,7 +336,7 @@ void SPANNPostFilterIndex::set_search_parameters(size_t max_check,
 size_t SPANNPostFilterIndex::compute_overfetch_k(size_t k,
                                                   int32_t tenant_id) const {
     if (!cfg_.overfetch_adaptive) {
-        return std::min(ntotal_, k * cfg_.overfetch_factor);
+        return std::min(ntotal_, static_cast<size_t>(k * cfg_.overfetch_factor));
     }
 
     // Adaptive mode: adjust overfetch based on label selectivity
@@ -290,13 +347,13 @@ size_t SPANNPostFilterIndex::compute_overfetch_k(size_t k,
     if (tenant_id < 0 ||
         static_cast<size_t>(tenant_id) >= label_counts_.size()) {
         // Unknown tenant → fallback to fixed factor
-        return std::min(ntotal_, k * cfg_.overfetch_factor);
+        return std::min(ntotal_, static_cast<size_t>(k * cfg_.overfetch_factor));
     }
 
     size_t count = label_counts_[tenant_id];
     if (count == 0) {
         // Zero-count label → no candidates expected, but still try fixed overfetch
-        return std::min(ntotal_, k * cfg_.overfetch_factor);
+        return std::min(ntotal_, static_cast<size_t>(k * cfg_.overfetch_factor));
     }
 
     if (ntotal_ == 0) return k;
@@ -400,7 +457,7 @@ void SPANNPostFilterIndex::search_with_predicate(
     auto tokens = predicate::tokenize(predicate_str);
 
     // Fixed overfetch for complex predicates (no selectivity info)
-    size_t overfetch_k = std::min(ntotal_, k * cfg_.overfetch_factor);
+    size_t overfetch_k = std::min(ntotal_, static_cast<size_t>(k * cfg_.overfetch_factor));
 
     // Call SPTAG SearchIndex
     SPTAG::QueryResult query_result(

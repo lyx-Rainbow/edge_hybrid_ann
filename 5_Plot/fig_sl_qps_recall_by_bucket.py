@@ -18,7 +18,7 @@ sys.path.insert(0, str(PROJ_ROOT / "5_Plot"))
 from utils import INDEX_META
 
 RESULTS_DIR = PROJ_ROOT / "4_Results"
-OUTPUT_DIR = PROJ_ROOT / "4_Results/fig_100k"
+OUTPUT_DIR = PROJ_ROOT / "4_Results/_legacy_100k_figures"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 DATASETS_100K = ["sift1m_100k", "yfcc100m_100k", "arxiv_100k", "gist1m_100k", "wit_100k"]

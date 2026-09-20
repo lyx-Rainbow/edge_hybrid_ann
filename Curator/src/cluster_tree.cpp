@@ -1,6 +1,7 @@
 // cluster_tree.cpp — Hierarchical clustering tree implementation
 #include "cluster_tree.h"
 
+#include <algorithm>
 #include <cstring>
 #include <vector>
 

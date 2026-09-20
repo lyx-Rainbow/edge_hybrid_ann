@@ -7,9 +7,11 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <malloc.h>
 #include <string>
 #include <unistd.h>
 #include <vector>
@@ -44,6 +46,7 @@ void write_json_results(
         const PreFilteringConfig& cfg,
         double build_time_s,
         size_t memory_bytes,
+        size_t disk_bytes,
         const std::vector<std::vector<int32_t>>& all_labels,
         const std::vector<std::vector<float>>& all_dists,
         const std::vector<int32_t>& query_labels,
@@ -63,7 +66,7 @@ void write_json_results(
     out << "  },\n";
     out << "  \"build_time_s\": " << build_time_s << ",\n";
     out << "  \"memory_bytes\": " << memory_bytes << ",\n";
-    out << "  \"disk_bytes\": 0,\n";
+    out << "  \"disk_bytes\": " << disk_bytes << ",\n";
     out << "  \"rss_peak_query_mb\": " << rss_peak_query_mb << ",\n";
 
     bool is_batch = !cp_filters.empty();
@@ -177,12 +180,29 @@ PreFilteringConfig load_config_from_json(const std::string& path) {
         if (v == "true") out = true;
         else if (v == "false") out = false;
     };
+    auto get_str = [&](const std::string& key, std::string& out) {
+        auto v = find_val(key);
+        if (!v.empty()) {
+            // strip surrounding quotes if present
+            if (v.size() >= 2 && v.front() == '"' && v.back() == '"') {
+                v = v.substr(1, v.size() - 2);
+            }
+            out = v;
+        }
+    };
 
     get_int("d", cfg.d);
     get_int("k", cfg.k);
     get_int("n_labels", cfg.n_labels);
     get_int("num_warmup", cfg.num_warmup);
+    get_int("scan_chunk_vectors", cfg.scan_chunk_vectors);
+    get_int("io_chunk_vectors", cfg.io_chunk_vectors);
+    get_int("io_chunk_delay_us", cfg.io_chunk_delay_us);
+    get_int("io_base_delay_us", cfg.io_base_delay_us);
     get_bool("batch_query", cfg.batch_query);
+    get_bool("external_scan", cfg.external_scan);
+    get_bool("simulate_chunked_io", cfg.simulate_chunked_io);
+    get_str("vector_file_path", cfg.vector_file_path);
 
     return cfg;
 }
@@ -200,6 +220,13 @@ void print_usage() {
     printf("  --output PATH          Output JSON (default: results.json)\n");
     printf("  --filter EXPR          Complex predicate filter (e.g. \"AND 0 NOT 1\")\n");
     printf("  --filters_file PATH    Batch CP: file with one filter per line (mutually exclusive with --filter)\n");
+    printf("  --external-scan        Use chunked disk-scan brute-force (slower lower-memory baseline)\n");
+    printf("  --scan-chunk N         Vectors per disk read in external-scan mode (default 4096)\n");
+    printf("  --vector-file PATH     External vector file for --external-scan (default: --train_vecs + .pfvec)\n");
+    printf("  --simulate-chunked-io  Simulate small-batch multi-load I/O for exact PreFilter baseline\n");
+    printf("  --io-chunk-vectors N   Vectors per simulated load (default 4096)\n");
+    printf("  --io-chunk-delay-us N  Simulated I/O delay per load in microseconds (default 1000)\n");
+    printf("  --io-base-delay-us N   Fixed per-query simulated I/O overhead in microseconds (default 0)\n");
     printf("  --profile              Print last-query timing breakdown\n");
     printf("\nsearch options (re-load data, skip allocation messages):\n");
     printf("  --train_vecs PATH      Training vectors .npy [N, d] float32 (required)\n");
@@ -225,6 +252,13 @@ int main(int argc, char** argv) {
     std::string config_path, output_path = "results.json";
     std::string filter_expr;  // complex predicate (AND/OR/NOT), empty = simple query
     std::string filters_file_path;
+    std::string vector_file_path;
+    bool external_scan = false;
+    size_t scan_chunk_vectors = 4096;
+    bool simulate_chunked_io = false;
+    size_t io_chunk_vectors = 4096;
+    size_t io_chunk_delay_us = 1000;
+    size_t io_base_delay_us = 0;
     size_t k = 10;
     bool batch_query = false;
     bool profile = false;
@@ -254,6 +288,13 @@ int main(int argc, char** argv) {
         else if (arg == "--output" && i + 1 < argc) output_path = argv[++i];
         else if (arg == "--filter" && i + 1 < argc) filter_expr = argv[++i];
         else if (arg == "--filters_file" && i + 1 < argc) filters_file_path = argv[++i];
+        else if (arg == "--external-scan") external_scan = true;
+        else if (arg == "--scan-chunk" && i + 1 < argc) scan_chunk_vectors = std::stoull(argv[++i]);
+        else if (arg == "--vector-file" && i + 1 < argc) vector_file_path = argv[++i];
+        else if (arg == "--simulate-chunked-io") simulate_chunked_io = true;
+        else if (arg == "--io-chunk-vectors" && i + 1 < argc) io_chunk_vectors = std::stoull(argv[++i]);
+        else if (arg == "--io-chunk-delay-us" && i + 1 < argc) io_chunk_delay_us = std::stoull(argv[++i]);
+        else if (arg == "--io-base-delay-us" && i + 1 < argc) io_base_delay_us = std::stoull(argv[++i]);
         else if (arg == "--profile") profile = true;
         else {
             fprintf(stderr, "Unknown option: %s\n", arg.c_str());
@@ -298,6 +339,16 @@ int main(int argc, char** argv) {
     }
     cfg.k = k;
     if (batch_query) cfg.batch_query = true;
+    if (external_scan) cfg.external_scan = true;
+    if (scan_chunk_vectors != 4096) cfg.scan_chunk_vectors = scan_chunk_vectors;
+    if (simulate_chunked_io) cfg.simulate_chunked_io = true;
+    if (io_chunk_vectors != 4096) cfg.io_chunk_vectors = io_chunk_vectors;
+    if (io_chunk_delay_us != 1000) cfg.io_chunk_delay_us = io_chunk_delay_us;
+    if (io_base_delay_us != 0) cfg.io_base_delay_us = io_base_delay_us;
+    if (!vector_file_path.empty()) cfg.vector_file_path = vector_file_path;
+    if (cfg.external_scan && cfg.vector_file_path.empty()) {
+        cfg.vector_file_path = train_vecs_path + ".pfvec";
+    }
 
     // ── Load training vectors ──
     printf("Loading training vectors from %s ...\n", train_vecs_path.c_str());
@@ -346,6 +397,14 @@ int main(int argc, char** argv) {
     size_t mem_bytes = index.memory_bytes();
     printf("Build complete: %.2f s, %.2f MB memory, %zu labels\n",
            build_time_s, mem_bytes / (1024.0 * 1024.0), index.n_labels());
+
+    // The NPY buffers are build-only inputs.  In in-memory mode the index
+    // already owns a full copy of the vectors; in external-scan mode the
+    // vectors are on disk.  Release the main-process copies before the query
+    // phase so query RSS does not count the same payload twice.
+    std::vector<float>().swap(train_vecs);
+    std::vector<int32_t>().swap(access_pairs);
+    malloc_trim(0);
 
     // ── Warmup queries ──
     size_t num_warmup = cfg.num_warmup;
@@ -568,7 +627,13 @@ int main(int argc, char** argv) {
 
     // ── Output ──
     printf("\nWriting results to %s ...\n", output_path.c_str());
-    write_json_results(output_path, cfg, build_time_s, mem_bytes,
+    size_t disk_bytes = 0;
+    if (!cfg.vector_file_path.empty()) {
+        std::error_code ec;
+        auto sz = std::filesystem::file_size(cfg.vector_file_path, ec);
+        if (!ec) disk_bytes = static_cast<size_t>(sz);
+    }
+    write_json_results(output_path, cfg, build_time_s, mem_bytes, disk_bytes,
                        all_labels, all_dists, query_labels,
                        search_times_us, rss_peak_query_mb,
                        cp_filters, cp_all_labels, cp_all_dists, cp_search_times_us);

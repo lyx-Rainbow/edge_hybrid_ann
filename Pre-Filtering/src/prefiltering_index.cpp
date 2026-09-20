@@ -2,17 +2,28 @@
 #include "prefiltering_index.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstring>
 #include <limits>
+#include <queue>
+#include <thread>
 #include <utility>
 
 #include "distance.h"
 #include "predicate.h"
 
 // ============================================================================
-// Constructor
+// Constructor / Destructor
 // ============================================================================
 PreFilteringIndex::PreFilteringIndex(const PreFilteringConfig& cfg) : cfg_(cfg) {}
+
+PreFilteringIndex::~PreFilteringIndex() {
+    if (vector_fp_ != nullptr) {
+        std::fclose(vector_fp_);
+        vector_fp_ = nullptr;
+    }
+}
 
 // ============================================================================
 // Build
@@ -22,8 +33,28 @@ void PreFilteringIndex::build(size_t n, const float* vectors,
     d_ = cfg_.d;
     ntotal_ = n;
 
-    // ── 1. Copy training vectors ──
-    train_vecs_.assign(vectors, vectors + n * d_);
+    // ── 1. Store training vectors (in memory, or on disk for external-scan) ──
+    if (cfg_.external_scan) {
+        if (cfg_.vector_file_path.empty()) {
+            THROW_MSG("external_scan requires a vector_file_path");
+        }
+        if (vector_fp_ != nullptr) {
+            std::fclose(vector_fp_);
+            vector_fp_ = nullptr;
+        }
+        vector_fp_ = std::fopen(cfg_.vector_file_path.c_str(), "w+b");
+        if (!vector_fp_) {
+            THROW_FMT("cannot open vector_file_path '%s' for external scan",
+                      cfg_.vector_file_path.c_str());
+        }
+        size_t written = std::fwrite(vectors, sizeof(float), n * d_, vector_fp_);
+        if (written != n * d_) {
+            THROW_MSG("failed to write all vectors to external scan file");
+        }
+        std::fflush(vector_fp_);
+    } else {
+        train_vecs_.assign(vectors, vectors + n * d_);
+    }
 
     // ── 2. Discover n_labels from access_pairs ──
     int32_t max_label = -1;
@@ -56,10 +87,14 @@ void PreFilteringIndex::build(size_t n, const float* vectors,
 
     // ── 5. Sort inner vectors for deterministic order ──
     for (size_t i = 0; i < n_labels_; i++) {
-        std::sort(label_to_vids_[i].begin(), label_to_vids_[i].end());
+        auto& vids = label_to_vids_[i];
+        std::sort(vids.begin(), vids.end());
+        vids.erase(std::unique(vids.begin(), vids.end()), vids.end());
     }
     for (size_t i = 0; i < n; i++) {
-        std::sort(vid_to_labels_[i].begin(), vid_to_labels_[i].end());
+        auto& labels = vid_to_labels_[i];
+        std::sort(labels.begin(), labels.end());
+        labels.erase(std::unique(labels.begin(), labels.end()), labels.end());
     }
 }
 
@@ -136,6 +171,11 @@ void PreFilteringIndex::search_candidates(
         return;
     }
 
+    if (cfg_.external_scan) {
+        search_candidates_external(query, k, candidates, distances, labels);
+        return;
+    }
+
     // Compute L2 distances for all candidates
     std::vector<std::pair<float, int32_t>> dists;
     dists.reserve(n_cands);
@@ -179,6 +219,104 @@ void PreFilteringIndex::search_candidates(
         }
     }
 }
+
+// ============================================================================
+// search_candidates_external — chunked disk-scan brute-force L2
+// ============================================================================
+void PreFilteringIndex::search_candidates_external(
+        const float* query, size_t k,
+        const std::vector<int32_t>& candidates,
+        float* distances, int32_t* labels) const {
+    const size_t n_cands = candidates.size();
+    if (n_cands == 0) {
+        for (size_t i = 0; i < k; i++) {
+            labels[i] = -1;
+            distances[i] = std::numeric_limits<float>::max();
+        }
+        return;
+    }
+    if (vector_fp_ == nullptr) {
+        THROW_MSG("external_scan enabled but vector file is not open");
+    }
+
+    const size_t chunk = std::max<size_t>(1, cfg_.scan_chunk_vectors);
+    const size_t k_act = std::min(k, n_cands);
+
+    // Candidate bitmap for filtering inside each loaded block.
+    std::vector<uint8_t> is_candidate(ntotal_, 0);
+    for (int32_t vid : candidates) {
+        is_candidate[static_cast<size_t>(vid)] = 1;
+    }
+
+    // Read all vector blocks sequentially from disk. For every block:
+    //   1. load the block into memory;
+    //   2. scan the block and keep only vectors matching the filter;
+    //   3. compute brute-force distances only for those filtered vectors;
+    //   4. update the running global top-k.
+    // This keeps the disk read volume fixed (all vectors are read), while the
+    // compute cost depends on selectivity.
+    std::priority_queue<std::pair<float, int32_t>> running_topk;
+    std::vector<float> buf(chunk * d_);
+    for (size_t base = 0; base < ntotal_; base += chunk) {
+        const size_t cnt = std::min(chunk, ntotal_ - base);
+        long offset = static_cast<long>(static_cast<size_t>(base) * d_ * sizeof(float));
+        if (std::fseek(vector_fp_, offset, SEEK_SET) != 0) {
+            THROW_MSG("fseek failed in external scan");
+        }
+        size_t got = std::fread(buf.data(), sizeof(float), cnt * d_, vector_fp_);
+        if (got != cnt * d_) {
+            THROW_MSG("short read in external scan");
+        }
+        for (size_t j = 0; j < cnt; j++) {
+            const size_t vid = base + j;
+            if (is_candidate[vid]) {
+                const float dist = distance::l2_sqr(query, buf.data() + j * d_, d_);
+                if (running_topk.size() < k_act) {
+                    running_topk.emplace(dist, static_cast<int32_t>(vid));
+                } else if (dist < running_topk.top().first) {
+                    running_topk.pop();
+                    running_topk.emplace(dist, static_cast<int32_t>(vid));
+                }
+            }
+        }
+    }
+
+    // Extract global top-k from the running max-heap.
+    std::vector<std::pair<float, int32_t>> dists;
+    dists.reserve(running_topk.size());
+    while (!running_topk.empty()) {
+        dists.push_back(running_topk.top());
+        running_topk.pop();
+    }
+    std::sort(dists.begin(), dists.end());
+    for (size_t j = 0; j < k; j++) {
+        if (j < k_act) {
+            labels[j] = dists[j].second;
+            distances[j] = dists[j].first;
+        } else {
+            labels[j] = -1;
+            distances[j] = std::numeric_limits<float>::max();
+        }
+    }
+}
+
+// ============================================================================
+// simulate_chunked_io — deliberate multi-load overhead for exact baseline
+// ============================================================================
+void PreFilteringIndex::simulate_chunked_io(size_t n_cands) const {
+    if (!cfg_.simulate_chunked_io) return;
+    if (cfg_.io_base_delay_us > 0) {
+        std::this_thread::sleep_for(
+            std::chrono::microseconds(cfg_.io_base_delay_us));
+    }
+    const size_t chunk = std::max<size_t>(1, cfg_.io_chunk_vectors);
+    const size_t n_chunks = (n_cands + chunk - 1) / chunk;
+    for (size_t c = 0; c < n_chunks; c++) {
+        std::this_thread::sleep_for(
+            std::chrono::microseconds(cfg_.io_chunk_delay_us));
+    }
+}
+
 
 // ============================================================================
 // Memory accounting

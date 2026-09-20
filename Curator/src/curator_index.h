@@ -57,13 +57,15 @@ public:
     void set_rerank_params(bool enabled, size_t topk_factor);
     bool get_rerank_enabled() const;
     size_t get_rerank_topk_factor() const;
+    void set_search_ef(size_t ef) { cfg_.search_ef = ef; }
 
     // ── ID mapping export (debug/Python) ──
     void get_label_to_vid_mapping(const ext_vid_t* labels, size_t n,
                                    int_vid_t* vids_out) const;
 
-    // ── Memory ──
+    // ── Memory / disk ──
     size_t memory_bytes() const;
+    size_t disk_bytes() const;
     MemoryBreakdown memory_breakdown() const;
     void print_tree_info() const;
 
@@ -71,6 +73,9 @@ public:
     // drop build-only maps, so query-phase RSS reflects the true index
     // footprint instead of build residue.
     void compact_memory();
+    // Release predicate-only structures for a single-label query workload.
+    // This keeps memory accounting useful for SL overhead experiments.
+    void release_predicate_structures();
 
     // ── PQ cache statistics ──
     PQBlockCache::Stats pq_cache_stats() const;

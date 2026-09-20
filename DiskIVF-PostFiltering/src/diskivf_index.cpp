@@ -44,9 +44,12 @@ void DiskIVFIndex::build(size_t n, const float* vectors,
                          "vid %d out of range [0, %zu)", vid, n);
         vid_to_labels[vid].push_back(tid);
     }
-    // Sort labels per vector (enables binary_search during query)
+    // Sort and de-duplicate labels per vector (enables binary_search during
+    // query and keeps duplicate access pairs from being persisted in the index).
     for (size_t i = 0; i < n; i++) {
-        std::sort(vid_to_labels[i].begin(), vid_to_labels[i].end());
+        auto& labels = vid_to_labels[i];
+        std::sort(labels.begin(), labels.end());
+        labels.erase(std::unique(labels.begin(), labels.end()), labels.end());
     }
 
     // ── 2. K-means clustering ──
@@ -381,10 +384,22 @@ void DiskIVFIndex::search(const float* query, size_t k, int32_t tenant_id,
     auto nearest = get_nearest_clusters(query);
     std::vector<std::pair<float, int32_t>> heap;
 
-    for (int32_t cid : nearest) {
-        if (cluster_sizes_[cid] == 0) continue;
-        ClusterData cluster = load_cluster(cid);
-        process_cluster(query, k, tenant_id, cluster, heap);
+    if (cfg_.preload_clusters) {
+        std::vector<ClusterData> loaded;
+        loaded.reserve(nearest.size());
+        for (int32_t cid : nearest) {
+            if (cluster_sizes_[cid] == 0) continue;
+            loaded.push_back(load_cluster(cid));
+        }
+        for (const auto& cluster : loaded) {
+            process_cluster(query, k, tenant_id, cluster, heap);
+        }
+    } else {
+        for (int32_t cid : nearest) {
+            if (cluster_sizes_[cid] == 0) continue;
+            ClusterData cluster = load_cluster(cid);
+            process_cluster(query, k, tenant_id, cluster, heap);
+        }
     }
 
     // Output top-k
@@ -412,10 +427,22 @@ void DiskIVFIndex::search_with_predicate(const float* query, size_t k,
     auto nearest = get_nearest_clusters(query);
     std::vector<std::pair<float, int32_t>> heap;
 
-    for (int32_t cid : nearest) {
-        if (cluster_sizes_[cid] == 0) continue;
-        ClusterData cluster = load_cluster(cid);
-        process_cluster_predicate(query, k, tokens, cluster, heap);
+    if (cfg_.preload_clusters) {
+        std::vector<ClusterData> loaded;
+        loaded.reserve(nearest.size());
+        for (int32_t cid : nearest) {
+            if (cluster_sizes_[cid] == 0) continue;
+            loaded.push_back(load_cluster(cid));
+        }
+        for (const auto& cluster : loaded) {
+            process_cluster_predicate(query, k, tokens, cluster, heap);
+        }
+    } else {
+        for (int32_t cid : nearest) {
+            if (cluster_sizes_[cid] == 0) continue;
+            ClusterData cluster = load_cluster(cid);
+            process_cluster_predicate(query, k, tokens, cluster, heap);
+        }
     }
 
     // Output top-k
@@ -439,10 +466,22 @@ void DiskIVFIndex::search_unfiltered(const float* query, size_t k,
     auto nearest = get_nearest_clusters(query);
     std::vector<std::pair<float, int32_t>> heap;
 
-    for (int32_t cid : nearest) {
-        if (cluster_sizes_[cid] == 0) continue;
-        ClusterData cluster = load_cluster(cid);
-        process_cluster_unfiltered(query, k, cluster, heap);
+    if (cfg_.preload_clusters) {
+        std::vector<ClusterData> loaded;
+        loaded.reserve(nearest.size());
+        for (int32_t cid : nearest) {
+            if (cluster_sizes_[cid] == 0) continue;
+            loaded.push_back(load_cluster(cid));
+        }
+        for (const auto& cluster : loaded) {
+            process_cluster_unfiltered(query, k, cluster, heap);
+        }
+    } else {
+        for (int32_t cid : nearest) {
+            if (cluster_sizes_[cid] == 0) continue;
+            ClusterData cluster = load_cluster(cid);
+            process_cluster_unfiltered(query, k, cluster, heap);
+        }
     }
 
     // Output top-k

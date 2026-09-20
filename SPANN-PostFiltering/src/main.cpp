@@ -195,6 +195,10 @@ SPANNConfig load_config_from_json(const std::string& path) {
         if (v == "true") out = true;
         else if (v == "false") out = false;
     };
+    auto get_double = [&](const std::string& key, double& out) {
+        auto v = find_val(key);
+        if (!v.empty()) out = std::stod(v);
+    };
 
     get_int("d", cfg.d);
     get_str("dist_method", cfg.dist_method);
@@ -205,7 +209,7 @@ SPANNConfig load_config_from_json(const std::string& path) {
     get_int("search_internal_result_num", cfg.search_internal_result_num);
     get_int("k", cfg.k);
     get_int("num_warmup", cfg.num_warmup);
-    get_int("overfetch_factor", cfg.overfetch_factor);
+    get_double("overfetch_factor", cfg.overfetch_factor);
     get_bool("overfetch_adaptive", cfg.overfetch_adaptive);
     get_bool("batch_query", cfg.batch_query);
     get_str("index_dir", cfg.index_dir);
@@ -260,7 +264,7 @@ int main(int argc, char** argv) {
     bool batch_query = false;
     bool profile = false;
     size_t max_check_override = 0;
-    size_t overfetch_override = 0;
+    double overfetch_override = 0;
 
     // ── Determine subcommand ──
     bool is_search = false;
@@ -293,7 +297,7 @@ int main(int argc, char** argv) {
         else if (arg == "--index_dir" && i + 1 < argc) index_dir = argv[++i];
         else if (arg == "--metadata_path" && i + 1 < argc) metadata_path = argv[++i];
         else if (arg == "--max_check" && i + 1 < argc) max_check_override = std::stoull(argv[++i]);
-        else if (arg == "--overfetch_factor" && i + 1 < argc) overfetch_override = std::stoull(argv[++i]);
+        else if (arg == "--overfetch_factor" && i + 1 < argc) overfetch_override = std::stod(argv[++i]);
         else {
             fprintf(stderr, "Unknown option: %s\n", arg.c_str());
             print_usage();
@@ -375,6 +379,13 @@ int main(int argc, char** argv) {
     size_t mem_bytes = 0;
     size_t disk_bytes_val = 0;
 
+    // The index object copies this config; make sure bench mode has the target
+    // index directory set before construction so SPTAG persists the built index
+    // to the requested directory (required for search-mode reuse).
+    if (!is_search && !index_dir.empty()) {
+        cfg.index_dir = index_dir;
+    }
+
     SPANNPostFilterIndex index(cfg);
 
     if (is_search) {
@@ -386,7 +397,7 @@ int main(int argc, char** argv) {
         printf("\nLoading pre-built SPANN index...\n");
         printf("  Index dir: %s\n", index_dir.c_str());
         printf("  Metadata:  %s\n", metadata_path.c_str());
-        printf("  max_check=%zu, overfetch_factor=%zu\n",
+        printf("  max_check=%zu, overfetch_factor=%.1f\n",
                cfg.max_check, cfg.overfetch_factor);
 
         auto t_load_start = std::chrono::high_resolution_clock::now();
@@ -444,6 +455,12 @@ int main(int argc, char** argv) {
         printf("Build complete: %.2f s, %.2f MB memory, %.2f MB disk\n",
                build_time_s, mem_bytes / (1024.0 * 1024.0),
                disk_bytes_val / (1024.0 * 1024.0));
+
+        // SPTAG owns its built index structures after BuildIndex.  The npy
+        // buffers are build-only inputs; release them before the query phase
+        // so bench-mode RSS is not inflated by a second raw-vector copy.
+        std::vector<float>().swap(train_vecs);
+        std::vector<int32_t>().swap(access_pairs);
     }
 
     // ── Warmup queries ──
@@ -665,7 +682,7 @@ int main(int argc, char** argv) {
                    filter_expr.empty() ? "single-label" : "complex-predicate");
             if (!filter_expr.empty()) printf("  filter: %s\n", filter_expr.c_str());
             printf("  max_check: %zu\n", cfg.max_check);
-            printf("  overfetch_factor: %zu\n", cfg.overfetch_factor);
+            printf("  overfetch_factor: %.1f\n", cfg.overfetch_factor);
             printf("  total: %.3f ms\n", ms);
         }
     }

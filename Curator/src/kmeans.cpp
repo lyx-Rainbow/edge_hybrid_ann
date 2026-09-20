@@ -8,6 +8,7 @@
 #include <stdexcept>
 
 #include "common.h"
+#include "distance.h"
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -111,36 +112,53 @@ KMeansResult kmeans(
         }
 
         // Update centroids
-        float global_mean[d];
-        for (int j = 0; j < d; j++) global_mean[j] = 0.0f;
-        int total_n = 0;
         for (int c = 0; c < n_clusters; c++) {
             if (global_count[c] > 0) {
                 float* cent = result.centroids.data() + c * d;
                 const float* gs = global_sum.data() + c * d;
                 for (int j = 0; j < d; j++) {
                     cent[j] = gs[j] / global_count[c];
-                    global_mean[j] += gs[j];
                 }
-                total_n += global_count[c];
             }
-        }
-        // Fix global_mean
-        if (total_n > 0) {
-            for (int j = 0; j < d; j++) global_mean[j] /= total_n;
         }
 
-        // Handle empty clusters: set to global mean + small perturbation
-        std::uniform_real_distribution<float> dist(-1e-6f, 1e-6f);
+        // Handle empty clusters: re-seed each empty centroid with a random
+        // training point.  A point has zero distance to its own new centroid,
+        // so it becomes assigned on the next iteration instead of leaving the
+        // cluster empty for the whole run (the old global-mean + tiny-noise
+        // fallback could leave a cluster permanently empty).
+        std::uniform_int_distribution<int> pick_point(0, n - 1);
         for (int c = 0; c < n_clusters; c++) {
             if (global_count[c] == 0) {
-                float* cent = result.centroids.data() + c * d;
-                std::memcpy(cent, global_mean, d * sizeof(float));
-                for (int j = 0; j < d; j++) {
-                    cent[j] += dist(rng);
-                }
+                int idx = pick_point(rng);
+                const float* src = x + static_cast<size_t>(idx) * effective_stride;
+                std::memcpy(result.centroids.data() + c * d, src,
+                            d * sizeof(float));
             }
         }
+    }
+
+    // Final assignment pass: make the returned assignments consistent with
+    // the final centroids.  Empty-cluster re-seeding happens after the last
+    // update, so assignments from inside the loop can be stale; build_tree
+    // uses these assignments for its partition while add_vector re-assigns
+    // by nearest centroid.  Recomputing once here makes the two partitions
+    // agree and prevents add_vector from overfilling a leaf.
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(n_threads) schedule(static)
+#endif
+    for (int i = 0; i < n; i++) {
+        const float* xi = x + static_cast<size_t>(i) * effective_stride;
+        int best_c = 0;
+        float best_dist = std::numeric_limits<float>::max();
+        for (int c = 0; c < n_clusters; c++) {
+            float dist = l2_sqr(xi, result.centroids.data() + c * d, d);
+            if (dist < best_dist) {
+                best_dist = dist;
+                best_c = c;
+            }
+        }
+        result.assignments[i] = best_c;
     }
 
     return result;

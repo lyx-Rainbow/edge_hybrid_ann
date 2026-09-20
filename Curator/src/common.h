@@ -58,7 +58,11 @@ using Buffer = std::vector<int_vid_t>;
 // Compile-time constants (matching original CURATOR_MAX_* )
 // ============================================================================
 constexpr size_t MAX_BRANCH_FACTOR_LOG2 = 6;
-constexpr size_t MAX_LEAF_SIZE_LOG2 = 10;
+// 12 bits give headroom for a small mismatch between the k-means
+// training assignment and the nearest-centroid insertion assignment;
+// with 10 bits a leaf receiving 1025+ vectors would corrupt the
+// path-encoded internal vid and crash grant_access_impl().
+constexpr size_t MAX_LEAF_SIZE_LOG2 = 16;
 constexpr size_t MAX_TREE_DEPTH =
         (sizeof(int_vid_t) * 8 - MAX_LEAF_SIZE_LOG2) / MAX_BRANCH_FACTOR_LOG2;
 constexpr size_t MAX_BRANCH_FACTOR = 1 << MAX_BRANCH_FACTOR_LOG2;

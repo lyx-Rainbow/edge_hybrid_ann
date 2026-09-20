@@ -4,6 +4,10 @@ __pycache__/
 *$py.class
 *.so
 
+# ===== 临时备份 / 会话日志 =====
+*.bak_*
+dsh-session-*.zip
+
 # ===== 数据集文件 (Dataset files, ~27GB) =====
 # 排除 1_Data 下的所有数据文件，仅保留 Python 脚本
 1_Data/*
@@ -15,10 +19,10 @@ __pycache__/
 4_Results/*/disk_data_build_sweep/
 4_Results/*/disk_data_memprof/
 
-# ===== 实验结果数据不入版本库（仅保留 fig_100k 可视化输出）=====
+# ===== 实验结果数据不入版本库（仅保留 fig_full 可视化输出）=====
 4_Results/*
-!4_Results/fig_100k/
-!4_Results/fig_100k/**
+!4_Results/fig_full/
+!4_Results/fig_full/**
 
 # ===== 归档区的二进制中间数据（仅保留目录引用，不纳入版本库）=====
 4_Results/_legacy/*/disk_data*/

@@ -15,7 +15,7 @@ Usage:
     python run_100k_sweep.py --dataset sift1m_100k --method Curator
     python run_100k_sweep.py --dataset sift1m_100k --method all --run_sl --run_cp
 """
-import argparse, json, os, subprocess, sys, time, tempfile
+import argparse, json, math, os, shutil, subprocess, sys, time, tempfile
 from itertools import product
 from pathlib import Path
 import numpy as np
@@ -25,11 +25,53 @@ PROJ_ROOT = Path(__file__).resolve().parent
 # ===========================================================================
 # Recall computation
 # ===========================================================================
-def compute_recall(pred_ids, gt_ids, k):
+_GT_CUTOFF_CACHE = {}
+
+
+def load_gt_cutoff(dataset):
+    """Load the exact label-filtered top-k cutoff distances, if available.
+
+    ``ground_truth_cutoff.npy`` is produced by
+    ``1_Data/compute_gt_cutoffs.py``.  When present, single-label recall uses
+    tie-aware matching: a returned vector counts as correct if it is in the
+    GT ID set or its distance is within the GT k-th distance (plus tolerance).
+    This avoids penalising different but equally valid tied top-k subsets.
+    """
+    if dataset in _GT_CUTOFF_CACHE:
+        return _GT_CUTOFF_CACHE[dataset]
+    path = (PROJ_ROOT / "1_Data/ground_truth" / dataset
+            / "ground_truth_cutoff.npy")
+    value = np.load(path) if path.exists() else None
+    _GT_CUTOFF_CACHE[dataset] = value
+    return value
+
+
+def compute_recall(pred_ids, gt_ids, k, pred_dists=None, gt_cutoff=None):
     valid = set(int(i) for i in gt_ids[:k] if i >= 0)
     if not valid:
         return 1.0
-    return len(set(pred_ids[:k]) & valid) / len(valid)
+    strict = len(set(pred_ids[:k]) & valid) / len(valid)
+    if pred_dists is None or gt_cutoff is None:
+        return strict
+    try:
+        cutoff = float(gt_cutoff)
+    except (TypeError, ValueError):
+        return strict
+    if not math.isfinite(cutoff) or cutoff < 0:
+        return strict
+    tolerance = max(1e-4, 1e-5 * abs(cutoff))
+    correct = 0
+    for pred_id, pred_dist in zip(pred_ids[:k], pred_dists[:k]):
+        try:
+            pred_id = int(pred_id)
+            pred_dist = float(pred_dist)
+        except (TypeError, ValueError):
+            continue
+        if pred_id < 0:
+            continue
+        if pred_id in valid or pred_dist <= cutoff + tolerance:
+            correct += 1
+    return correct / len(valid)
 
 
 def load_gt(dataset, filter_expr=None):
@@ -195,7 +237,7 @@ def run_cpp_bench(method, dataset, extra_args, output_path,
 # ===========================================================================
 def _parse_sl_from_json(res, dataset, k, elapsed, params,
                         query_info, selected_buckets,
-                        memory_bytes=0, rss_peak_query_mb=0):
+                        memory_bytes=0, rss_peak_query_mb=0, disk_bytes=0):
     """Parse C++ JSON 'queries' array → SL stats (qps, recall, per_bucket)."""
     queries = res.get("queries", [])
     n_queries = len(queries)
@@ -211,6 +253,7 @@ def _parse_sl_from_json(res, dataset, k, elapsed, params,
             "params": params,
             "latency_ms": 0, "qps": 0, "avg_recall": 0, "min_recall": 0,
             "build_time_s": build_time_s, "memory_bytes": memory_bytes,
+            "disk_bytes": disk_bytes,
             "memory_mb": float(memory_mb),
             "rss_peak_query_mb": float(rss_peak_query_mb) if rss_peak_query_mb else 0,
             "per_bucket": {},
@@ -218,11 +261,17 @@ def _parse_sl_from_json(res, dataset, k, elapsed, params,
 
     search_time_s = max(elapsed - build_time_s, 0.001)
     sl_gt = load_gt(dataset)
+    gt_cutoffs = load_gt_cutoff(dataset)
     latencies, recalls_list = [], []
     bucket_lats, bucket_recs = {}, {}
 
     for q, qr in enumerate(queries):
-        r = compute_recall(qr["labels"], sl_gt[q], k)
+        cutoff = None
+        if gt_cutoffs is not None and q < len(gt_cutoffs):
+            cutoff = gt_cutoffs[q]
+        r = compute_recall(qr["labels"], sl_gt[q], k,
+                           pred_dists=qr.get("distances"),
+                           gt_cutoff=cutoff)
         recalls_list.append(r)
         st = qr.get("search_time_us", 0)
         lat_ms = st / 1000.0 if st > 0 else search_time_s / n_queries * 1000
@@ -256,6 +305,7 @@ def _parse_sl_from_json(res, dataset, k, elapsed, params,
         "min_recall": float(np.min(recalls_list)) if recalls_list else 0,
         "build_time_s": build_time_s,
         "memory_bytes": memory_bytes,
+        "disk_bytes": disk_bytes,
         "memory_mb": float(memory_mb),
         "rss_peak_query_mb": float(rss_peak_query_mb) if rss_peak_query_mb else 0,
         "per_bucket": per_bucket,
@@ -372,7 +422,8 @@ def run_curator_sweep(dataset, sweep_cfg, output_dir, run_sl=True, run_cp=False,
                                          {"pq_M": pq_m, "search_ef": search_ef},
                                          query_info, selected_buckets,
                                          memory_bytes=res.get("memory_bytes", 0),
-                                         rss_peak_query_mb=res.get("rss_peak_query_mb", 0))
+                                         rss_peak_query_mb=res.get("rss_peak_query_mb", 0),
+                                         disk_bytes=res.get("disk_bytes", 0))
                 entry.update(sl)
             else:
                 print("SL_FAILED", end=" ", flush=True)
@@ -399,6 +450,26 @@ def run_curator_sweep(dataset, sweep_cfg, output_dir, run_sl=True, run_cp=False,
 
         os.unlink(tmp_cfg.name)
         sweep_results.append(entry)
+
+        # Incrementally save so a crash does not lose completed combos.
+        output_path = output_dir / f"sweep_{dataset}.json"
+        output_json = {
+            "dataset": dataset, "method": "Curator",
+            "n_combinations": len(sweep_results),
+            "sweep_results": sweep_results,
+        }
+        if sweep_results:
+            output_json["index_memory_mb"] = sweep_results[0].get("memory_mb", 0)
+            output_json["rss_peak_query_mb"] = sweep_results[0].get("rss_peak_query_mb", 0)
+            output_json["build_time_s"] = sweep_results[0].get("build_time_s", 0)
+        with open(output_path, "w") as f:
+            json.dump(output_json, f, indent=2)
+
+        # Remove the large flash file; only result JSON is needed for plotting.
+        try:
+            os.remove(str(output_dir / f"disk_data_{dataset}_{tag}"))
+        except OSError:
+            pass
 
         if entry.get("complex_predicate"):
             cp = entry["complex_predicate"]
@@ -469,7 +540,8 @@ def run_diskivf_sweep(dataset, sweep_cfg, output_dir, run_sl=True, run_cp=False,
                                          {"nprobe": nprobe, "nlist": nlist},
                                          query_info, selected_buckets,
                                          memory_bytes=res.get("memory_bytes", 0),
-                                         rss_peak_query_mb=res.get("rss_peak_query_mb", 0))
+                                         rss_peak_query_mb=res.get("rss_peak_query_mb", 0),
+                                         disk_bytes=res.get("disk_bytes", 0))
                 entry.update(sl)
             else:
                 print("SL_FAILED", end=" ", flush=True)
@@ -494,6 +566,27 @@ def run_diskivf_sweep(dataset, sweep_cfg, output_dir, run_sl=True, run_cp=False,
                 print("CP_FAILED", end=" ", flush=True)
 
         sweep_results.append(entry)
+
+        # Incrementally save completed combos.
+        output_path = output_dir / f"sweep_{dataset}.json"
+        output_json = {
+            "dataset": dataset, "method": "DiskIVF",
+            "n_combinations": len(sweep_results),
+            "sweep_results": sweep_results,
+        }
+        if sweep_results:
+            output_json["index_memory_mb"] = sweep_results[0].get("memory_mb", 0)
+            output_json["rss_peak_query_mb"] = sweep_results[0].get("rss_peak_query_mb", 0)
+            output_json["build_time_s"] = sweep_results[0].get("build_time_s", 0)
+        with open(output_path, "w") as f:
+            json.dump(output_json, f, indent=2)
+
+        # Free disk storage; only JSON results are retained for plotting.
+        try:
+            shutil.rmtree(disk_dir, ignore_errors=True)
+        except Exception:
+            pass
+
 
         if entry.get("complex_predicate"):
             cp = entry["complex_predicate"]
@@ -574,7 +667,8 @@ def run_spann_sweep(dataset, sweep_cfg, output_dir, run_sl=True, run_cp=False,
                                          {"max_check": mc, "overfetch_factor": of},
                                          query_info, selected_buckets,
                                          memory_bytes=res.get("memory_bytes", 0),
-                                         rss_peak_query_mb=res.get("rss_peak_query_mb", 0))
+                                         rss_peak_query_mb=res.get("rss_peak_query_mb", 0),
+                                         disk_bytes=res.get("disk_bytes", 0))
                 entry.update(sl)
             else:
                 print("SL_FAILED", end=" ", flush=True)
@@ -658,7 +752,8 @@ def run_prefiltering_sweep(dataset, sweep_cfg, output_dir, run_sl=True, run_cp=F
             sl = _parse_sl_from_json(res, dataset, k, elapsed, {},
                                      query_info, selected_buckets,
                                      memory_bytes=res.get("memory_bytes", 0),
-                                     rss_peak_query_mb=res.get("rss_peak_query_mb", 0))
+                                     rss_peak_query_mb=res.get("rss_peak_query_mb", 0),
+                                     disk_bytes=res.get("disk_bytes", 0))
             entry.update(sl)
         else:
             print("SL_FAILED", end=" ", flush=True)

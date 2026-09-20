@@ -198,6 +198,7 @@ DiskIVFConfig load_config_from_json(const std::string& path) {
     get_int("clus_niter", cfg.clus_niter);
     get_int("num_warmup", cfg.num_warmup);
     get_bool("batch_query", cfg.batch_query);
+    get_bool("preload_clusters", cfg.preload_clusters);
     get_str("disk_dir", cfg.disk_dir);
 
     return cfg;
@@ -216,6 +217,7 @@ void print_usage() {
     printf("  --nprobe N             Number of clusters to probe (default: 16)\n");
     printf("  --disk_dir PATH        Disk storage directory (default: diskivf_data)\n");
     printf("  --batch-query          Enable inter-query OpenMP parallelism\n");
+    printf("  --preload-clusters     Load all nprobe clusters before scanning (memory overhead experiment)\n");
     printf("  --output PATH          Output JSON (default: results.json)\n");
     printf("  --filter EXPR          Complex predicate filter (e.g. \"AND 0 NOT 1\")\n");
     printf("  --filters_file PATH    Batch CP: file with one filter per line (mutually exclusive with --filter)\n");
@@ -227,6 +229,7 @@ void print_usage() {
     printf("  --k K                  Results per query (default: 10)\n");
     printf("  --nprobe N             Number of clusters to probe (default: 16)\n");
     printf("  --batch-query          Enable inter-query OpenMP parallelism\n");
+    printf("  --preload-clusters     Load all nprobe clusters before scanning (memory overhead experiment)\n");
     printf("  --output PATH          Output JSON (default: results.json)\n");
     printf("  --filter EXPR          Complex predicate filter\n");
     printf("  --filters_file PATH    Batch CP: file with one filter per line (mutually exclusive with --filter)\n");
@@ -249,6 +252,7 @@ int main(int argc, char** argv) {
     size_t nlist_override = 0;
     size_t nprobe_override = 0;
     bool batch_query = false;
+    bool preload_clusters = false;
     bool profile = false;
 
     // ── Parse CLI args ──
@@ -276,6 +280,7 @@ int main(int argc, char** argv) {
         else if (arg == "--nprobe" && i + 1 < argc) nprobe_override = std::stoull(argv[++i]);
         else if (arg == "--disk_dir" && i + 1 < argc) disk_dir = argv[++i];
         else if (arg == "--batch-query") batch_query = true;
+        else if (arg == "--preload-clusters") preload_clusters = true;
         else if (arg == "--output" && i + 1 < argc) output_path = argv[++i];
         else if (arg == "--filter" && i + 1 < argc) filter_expr = argv[++i];
         else if (arg == "--filters_file" && i + 1 < argc) filters_file_path = argv[++i];
@@ -338,6 +343,7 @@ int main(int argc, char** argv) {
     if (nprobe_override > 0) cfg.nprobe = nprobe_override;
     if (!disk_dir.empty()) cfg.disk_dir = disk_dir;
     if (batch_query) cfg.batch_query = true;
+    if (preload_clusters) cfg.preload_clusters = true;
 
     // ── Load query vectors (needed by both modes) ──
     printf("Loading queries from %s ...\n", queries_path.c_str());
