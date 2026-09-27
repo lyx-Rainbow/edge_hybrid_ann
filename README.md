@@ -579,30 +579,29 @@ new-Baselines/
 │   ├── Pre-Filtering/                     #   Pre-Filtering 配置（+ sweep_100k）
 │   └── SPANN-PostFiltering/               #   SPANN 配置（+ sweep_100k / sweep_100k_reduced）
 │
-├── 4_Results/                             # 实验结果输出（除 fig_100k 外不入版本库）
-│   ├── Curator/  DiskIVF-PostFiltering/   #   各方法结果与中间产物
-│   ├── Pre-Filtering/  SPANN-PostFiltering/
-│   ├── fig_100k/                          #   ★ 100K 可视化输出（PNG + SVG，入库）
-│   │   ├── fig_sl_qps_recall_100k.*       #     SL QPS-Recall 折线（Pareto frontier）
-│   │   ├── fig_cp_qps_recall_100k.*       #     CP QPS-Recall 折线
-│   │   ├── fig_sl_qps_recall_by_bucket.*  #     选择率分面（5×3）
-│   │   ├── fig_memory_100k.*              #     Memory 柱状图（查询期峰值 RSS）
-│   │   └── fig_memory_100k_v2.*           #     Memory v2（Curator 内存优化配置）
-│   ├── memory_tuned/                      #   Curator 内存优化版测量数据
-│   └── RESULTS_ANALYSIS.md                #   结果分析文档
+├── 4_Results/                             # 实验结果输出（仅当前 fig_full 入库）
+│   ├── Curator/ DiskIVF/ SPANN/           #   当前绘图使用的各方法 sweep JSON
+│   ├── Pre-Filtering/                     #   PreFilter sweep（含 fullscan 结果）
+│   ├── build_measure/                     #   柱状图统一测量数据 index_metrics.json
+│   ├── _final_ext4_raw/                   #   最终补充实验原始输出（不入库）
+│   └── fig_full/                          #   ★ 当前版本结果图（PNG + SVG，入库）
 │
-├── 5_Plot/                                # 可视化脚本
-│   ├── fig_sl_qps_recall_100k.py          #   SL QPS-Recall（自适应横轴 + 单调 frontier）
-│   ├── fig_cp_qps_recall_100k.py          #   CP QPS-Recall
-│   ├── fig_sl_qps_recall_by_bucket.py     #   选择率分面
-│   ├── fig_memory_100k.py                 #   Memory（统一 RSS 口径）
-│   ├── fig_memory_100k_v2.py              #   Memory v2（Curator 内存优化配置）
-│   ├── fig1_sl_latency_recall.py          #   [旧] FIG1: 全量数据集 SL
-│   ├── fig2_cp_latency_recall.py          #   [旧] FIG2: 全量数据集 CP
-│   ├── fig3_memory.py                     #   [旧] FIG3: 内存占用对比
-│   ├── fig4_build_time.py                 #   [旧] FIG4: 构建时间对比
-│   └── utils.py                           #   绘图工具函数（INDEX_META 等）
-│
+├── 5_Plot/                                # 当前绘图与手工调整脚本
+│   ├── fig_final_sl_latency.py            #   SL Latency-Recall 折线图
+│   ├── fig_final_cp_latency.py            #   CP Latency-Recall 折线图
+│   ├── fig_final_latency_at_recall.py     #   matched-recall 图
+│   ├── fig_full_bars.py                   #   内存 / 构建时间 / Volume 柱状图
+│   ├── fig_full_sl_by_percentile.py       #   SL bucket 数据与曲线工具
+│   ├── fig_full_cp_by_predicate.py        #   CP 数据与曲线工具
+│   ├── latency_trend.py                   #   锚点/趋势/手工 override 工具
+│   ├── paper_style.py  utils.py           #   样式与共享绘图工具
+│   ├── figure_text_style.json             #   字体与静态文字调整接口
+│   ├── manual_latency_points.csv          #   手工锚点编辑表
+│   ├── manual_latency_overrides.json      #   图片实际读取的手工 override
+│   ├── apply_manual_latency_points.py     #   CSV -> override JSON
+│   ├── build_manual_points_table.py       #   候选表生成（有已知问题，慎用）
+│   ├── plot_manual_candidate_ids.py       #   候选点编号图（可选）
+│   └── append_high_recall_*.py / high_recall_appends.json
 └── tests/                                 # 诊断与验收脚本
     ├── report_frontier.py                 #   折线验收报告（点数/左右端/≥0.95）
     ├── quick_check.py                     #   单个 C++ 输出 JSON 的 recall/QPS 速查
