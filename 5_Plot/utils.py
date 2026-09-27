@@ -9,10 +9,10 @@ RESULTS_DIR = Path(__file__).resolve().parent.parent / "4_Results"
 
 # Index name -> (display name, results subdir, color, marker)
 INDEX_META = {
-    "curator":   ("Proposed",  "Curator",        "#1f77b4", "o"),
-    "diskivf":   ("DiskIVF",   "DiskIVF",        "#ff7f0e", "s"),
-    "spann":     ("SPANN",     "SPANN",          "#2ca02c", "D"),
-    "prefilter": ("PreFilter", "Pre-Filtering",  "#d62728", "^"),
+    "curator":   ("LEAF",  "Curator",        "#1f77b4", "o"),
+    "diskivf":   ("DiskIVF-PostFiltering",   "DiskIVF",        "#ff7f0e", "s"),
+    "spann":     ("SPANN-PostFiltering",     "SPANN",          "#2ca02c", "D"),
+    "prefilter": ("PreFiltering", "Pre-Filtering",  "#d62728", "^"),
 }
 
 

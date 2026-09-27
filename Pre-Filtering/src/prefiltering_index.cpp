@@ -112,6 +112,19 @@ void PreFilteringIndex::search(const float* query, size_t k, int32_t tenant_id,
         return;
     }
 
+    if (cfg_.full_scan_sl) {
+        std::vector<int32_t> candidates;
+        candidates.reserve(ntotal_ / 8);
+        for (size_t vid = 0; vid < ntotal_; ++vid) {
+            const auto& vlabels = vid_to_labels_[vid];
+            if (std::binary_search(vlabels.begin(), vlabels.end(), tenant_id)) {
+                candidates.push_back(static_cast<int32_t>(vid));
+            }
+        }
+        search_candidates(query, k, candidates, distances, labels);
+        return;
+    }
+
     const auto& candidates = label_to_vids_[tenant_id];
     search_candidates(query, k, candidates, distances, labels);
 }

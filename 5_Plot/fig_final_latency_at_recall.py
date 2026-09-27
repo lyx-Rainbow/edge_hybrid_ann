@@ -7,6 +7,7 @@ target.  Manual point selection and position adjustments work through
 """
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import sys
@@ -199,11 +200,11 @@ def plot_target(target: float):
         axis.set_xscale("log")
         axis.set_yscale("log")
         axis.grid(True, linewidth=3, alpha=0.30)
-        axis.set_xlabel("Median selectivity", fontsize=22)
-        axis.set_ylabel(
-            f"Latency @ Recall@10 ≥ {target:.2f} (ms)", fontsize=22)
-        axis.tick_params(axis="both", labelsize=16)
-        axis.set_title(dataset, fontsize=24, fontweight="bold")
+        PS.apply_axis_text(
+            axis, "Median selectivity",
+            f"Latency @ Recall@10 ≥ {target:.2f} (ms)",
+            fontsize=22, tick_fontsize=16)
+        PS.set_title(axis, dataset, fontsize=24)
     figure.tight_layout()
     name = f"fig_full_latency_at_recall_{int(round(target * 100)):03d}"
     save_figure(figure, name)
@@ -212,7 +213,12 @@ def plot_target(target: float):
 
 
 def main():
-    PS.apply_style()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--text-config", default=None)
+    parser.add_argument("--prefilter-inmem", action="store_true")
+    parser.add_argument("--prefilter-external", action="store_true")
+    args = parser.parse_args()
+    PS.apply_style(args.text_config)
     for output_dir in OUTPUT_DIRS:
         output_dir.mkdir(parents=True, exist_ok=True)
     for target in TARGETS:

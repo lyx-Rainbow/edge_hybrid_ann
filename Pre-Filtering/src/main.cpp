@@ -201,6 +201,7 @@ PreFilteringConfig load_config_from_json(const std::string& path) {
     get_int("io_base_delay_us", cfg.io_base_delay_us);
     get_bool("batch_query", cfg.batch_query);
     get_bool("external_scan", cfg.external_scan);
+    get_bool("full_scan_sl", cfg.full_scan_sl);
     get_bool("simulate_chunked_io", cfg.simulate_chunked_io);
     get_str("vector_file_path", cfg.vector_file_path);
 
@@ -217,6 +218,7 @@ void print_usage() {
     printf("  --config PATH          JSON config file (optional)\n");
     printf("  --k K                  Results per query (default: 10)\n");
     printf("  --batch-query          Enable inter-query OpenMP parallelism\n");
+    printf("  --full-scan            Scan all vectors for single-label (no inverted-list fast path)\n");
     printf("  --output PATH          Output JSON (default: results.json)\n");
     printf("  --filter EXPR          Complex predicate filter (e.g. \"AND 0 NOT 1\")\n");
     printf("  --filters_file PATH    Batch CP: file with one filter per line (mutually exclusive with --filter)\n");
@@ -235,6 +237,7 @@ void print_usage() {
     printf("  --query_labels PATH    Query labels .npy [Q] int32 (-1=unfiltered)\n");
     printf("  --k K                  Results per query (default: 10)\n");
     printf("  --batch-query          Enable inter-query OpenMP parallelism\n");
+    printf("  --full-scan            Scan all vectors for single-label (no inverted-list fast path)\n");
     printf("  --output PATH          Output JSON (default: results.json)\n");
     printf("  --filter EXPR          Complex predicate filter\n");
     printf("  --filters_file PATH    Batch CP: file with one filter per line (mutually exclusive with --filter)\n");
@@ -254,6 +257,7 @@ int main(int argc, char** argv) {
     std::string filters_file_path;
     std::string vector_file_path;
     bool external_scan = false;
+    bool full_scan_sl = false;
     size_t scan_chunk_vectors = 4096;
     bool simulate_chunked_io = false;
     size_t io_chunk_vectors = 4096;
@@ -289,6 +293,7 @@ int main(int argc, char** argv) {
         else if (arg == "--filter" && i + 1 < argc) filter_expr = argv[++i];
         else if (arg == "--filters_file" && i + 1 < argc) filters_file_path = argv[++i];
         else if (arg == "--external-scan") external_scan = true;
+        else if (arg == "--full-scan") full_scan_sl = true;
         else if (arg == "--scan-chunk" && i + 1 < argc) scan_chunk_vectors = std::stoull(argv[++i]);
         else if (arg == "--vector-file" && i + 1 < argc) vector_file_path = argv[++i];
         else if (arg == "--simulate-chunked-io") simulate_chunked_io = true;
@@ -340,6 +345,7 @@ int main(int argc, char** argv) {
     cfg.k = k;
     if (batch_query) cfg.batch_query = true;
     if (external_scan) cfg.external_scan = true;
+    if (full_scan_sl) cfg.full_scan_sl = true;
     if (scan_chunk_vectors != 4096) cfg.scan_chunk_vectors = scan_chunk_vectors;
     if (simulate_chunked_io) cfg.simulate_chunked_io = true;
     if (io_chunk_vectors != 4096) cfg.io_chunk_vectors = io_chunk_vectors;

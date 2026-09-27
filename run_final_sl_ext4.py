@@ -177,7 +177,10 @@ def run_curator(ds, plan, reuse_raw=True):
     for build in builds:
         pq_m = int(build["pq_M"])
         efs = [int(x) for x in build["search_ef"]]
-        base_out = raw_dir / f"curator_{ds}_pq{pq_m}.json"
+        tag = str(build.get("tag", ""))
+        rerank_factor = build.get("pq_rerank_topk_factor")
+        beam_size = build.get("beam_size")
+        base_out = raw_dir / f"curator_{ds}_pq{pq_m}{tag}.json"
         existing = {ef: base_out.with_name(base_out.stem + f"_ef{ef}.json")
                     for ef in efs}
         missing = [ef for ef in efs if not existing[ef].exists()]
@@ -194,6 +197,10 @@ def run_curator(ds, plan, reuse_raw=True):
                 "use_flash_storage": True,
                 "batch_query": False,
             })
+            if rerank_factor is not None:
+                cfg["pq_rerank_topk_factor"] = int(rerank_factor)
+            if beam_size is not None:
+                cfg["beam_size"] = int(beam_size)
             cfg_path = raw_dir / f"config_pq{pq_m}.json"
             save_json_atomic(cfg_path, cfg)
             cmd = [
@@ -216,6 +223,10 @@ def run_curator(ds, plan, reuse_raw=True):
                 continue
             res = load_json(out_path)
             params = {"pq_M": pq_m, "search_ef": ef}
+            if rerank_factor is not None:
+                params["pq_rerank_topk_factor"] = int(rerank_factor)
+            if beam_size is not None:
+                params["beam_size"] = int(beam_size)
             sl = R._parse_sl_from_json(
                 res, ds, K, res.get("build_time_s", 0) + 1.0, params,
                 query_info, selected_buckets,

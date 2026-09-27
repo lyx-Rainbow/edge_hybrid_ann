@@ -37,6 +37,7 @@ struct PreFilteringConfig {
     size_t num_warmup = 20;
     bool batch_query = false;
     bool external_scan = false;         // chunked disk scan mode (lower memory, slower)
+    bool full_scan_sl = false;          // scan all vectors for single-label search
     size_t scan_chunk_vectors = 4096;   // vectors read per disk I/O in external mode
     std::string vector_file_path;       // binary float32 vector file for external mode
 

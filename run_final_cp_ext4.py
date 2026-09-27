@@ -81,7 +81,8 @@ def paths_for(ds, plan):
 # ---------------------------------------------------------------------------
 def curator_raw_paths(ds, plan):
     pq = int(plan["curator_pq_M"])
-    base = RAW_ROOT / f"curator_{ds}_pq{pq}.json"
+    tag = str(plan.get("curator_tag", ""))
+    base = RAW_ROOT / f"curator_{ds}_pq{pq}{tag}.json"
     return pq, base, {int(ef): base.with_name(base.stem + f"_ef{ef}.json")
                       for ef in plan["curator_search_ef"]}
 
@@ -105,6 +106,8 @@ def run_curator(ds, plan, reuse=True):
             "use_flash_storage": True,
             "batch_query": False,
         })
+        if plan.get("curator_nprobe") is not None:
+            cfg["nprobe"] = int(plan["curator_nprobe"])
         cfg_path = RAW_ROOT / f"curator_{ds}_pq{pq}_config.json"
         save_json_atomic(cfg_path, cfg)
         filters_file = R._write_cp_filters_file([plan["formula"]], rpn=True)

@@ -33,25 +33,40 @@ K = 10
 XMIN_DEFAULT = 0.5
 BG_GRAY = "#d9d9d9"
 
-# The main scientific QPS curve should use the exact in-memory PreFilter
-# baseline.  The external-scan variant is a memory-optimised research object
-# and is selected only with --prefilter-external (or when the in-memory file
-# is unavailable).
-PREFILTER_MODE = "external" if "--prefilter-external" in sys.argv else "inmem"
+# PreFilter data source.  The default is the real full-scan baseline
+# (sweep_<dataset>_fullscan.json); --prefilter-inmem and --prefilter-external
+# switch back to the legacy modes for compatibility.
+if "--prefilter-inmem" in sys.argv:
+    PREFILTER_MODE = "inmem"
+elif "--prefilter-external" in sys.argv:
+    PREFILTER_MODE = "external"
+else:
+    PREFILTER_MODE = "fullscan"
 # Keep the manual-selection mechanism, but make automatic Pareto selection the
 # default scientific path.  Pass --manual to apply manual_sl_selection.json.
 MANUAL_MODE = "--manual" in sys.argv
 
 
 def load_sweep(method_key, dataset):
-    if method_key == "prefilter" and PREFILTER_MODE == "inmem":
-        inmem_path = (RESULTS_DIR / INDEX_META[method_key][1]
-                      / f"sweep_{dataset}_inmem.json")
-        if inmem_path.exists():
-            with open(inmem_path) as f:
-                return json.load(f)
-        print(f"Warning: missing {inmem_path.name}; falling back to external PreFilter")
-    path = RESULTS_DIR / INDEX_META[method_key][1] / f"sweep_{dataset}.json"
+    subdir = RESULTS_DIR / INDEX_META[method_key][1]
+    if method_key == "prefilter":
+        mode_files = {
+            "fullscan": [f"sweep_{dataset}_fullscan.json",
+                         f"sweep_{dataset}.json",
+                         f"sweep_{dataset}_inmem.json"],
+            "inmem": [f"sweep_{dataset}_inmem.json",
+                      f"sweep_{dataset}.json"],
+            "external": [f"sweep_{dataset}.json"],
+        }
+        for name in mode_files.get(PREFILTER_MODE, []):
+            path = subdir / name
+            if path.exists():
+                with open(path) as f:
+                    return json.load(f)
+        print(f"Warning: no PreFilter sweep found for {dataset} "
+              f"(mode={PREFILTER_MODE})")
+        return None
+    path = subdir / f"sweep_{dataset}.json"
     if not path.exists():
         return None
     with open(path) as f:

@@ -173,3 +173,85 @@ The override file supports manual `selected_ids`, `adjustments`
 
 The `matched_recall` section of the override file controls
 `fig_full_latency_at_recall_090/095`; see MANUAL_LATENCY_GUIDE.md section 7 for the PreFilter line behavior.
+
+## 6. High-recall supplement (2026-09-22)
+
+The final SL/CP plans had low `pq_M` for Curator and low
+`SearchInternalResultNum` (SIR) for SPANN, so several right endpoints saturated
+below the desired recall.
+
+- Curator: supplemental ext4 builds with `pq_M=192` for arxiv/wit SL and
+  arxiv CP, `pq_M=96`/`pq_M=192` for yfcc100m CP.
+- SPANN: supplemental `SearchInternalResultNum=20000/50000` combinations with
+  overfetch factors large enough to expose the extra internal candidates.
+- Existing manual anchors were preserved exactly; new measured anchors were
+  appended only to the right via `5_Plot/high_recall_appends.json` and
+  `5_Plot/append_high_recall_anchors.py`. The editable CSV was kept in sync.
+- `bash render_latency_figures.sh` and `python verify_latency_figures.py`
+  report `errors=0 warnings=0`.
+
+Selected final right endpoints:
+
+| case | Curator | SPANN | DiskIVF |
+|---|---|---|---|
+| SL arxiv 99p | 1.0000 @ 68.97 ms | 1.0000 @ 913.81 ms | 0.9994 @ 163.00 ms |
+| SL wit 99p | 0.9856 @ 214.18 ms | 0.9650 @ 1391.32 ms | 0.9830 @ 651.96 ms |
+| CP yfcc100m AND | 0.9975 @ 0.335 ms | 1.0000 @ 1020.12 ms | 1.0000 @ 345.05 ms |
+| CP arxiv MIXED | 1.0000 @ 114.63 ms | 1.0000 @ 2701.62 ms | 1.0000 @ 2018.52 ms |
+## 7. Manuscript text and split bar figures (2026-09-22)
+
+- Added `5_Plot/figure_text_style.json` as the single text-adjustment
+  interface.  Effective size = `base_size * global_scale * <kind>_scale`;
+  weights for labels, ticks and titles are also configured there.  The
+  `FIGURE_TEXT_CONFIG` environment variable can point to an alternative JSON
+  file.  See `5_Plot/FONT_STYLE_GUIDE.md`.
+- Legends intentionally keep their previous sizes (`save_legend`,
+  `fig_full_bars_legend`).
+- `5_Plot/fig_full_bars.py` now supports:
+  - one standalone figure per metric per dataset,
+    `fig_full_{memory,build_time,volume}_{dataset}.{png,svg}`;
+  - one grid per metric, `fig_full_{metric}_grid.{png,svg}`;
+  - the legacy combined names `fig_full_{metric}.{png,svg}` as grid aliases.
+  CLI: `--metric memory|build_time|volume|all`,
+  `--layout separate|grid|both`, `--datasets DATASET...`.
+- `render_all_figures.sh` now also runs `verify_figure_outputs.py`.
+## 8. SL gist1m high-recall supplement (2026-09-23)
+
+- The final plan had `pq_M=160` for gist1m, giving strict right endpoints
+  `0.9756` (75p) and `0.9500` (99p).
+- Supplemental ext4 Curator builds:
+  - `pq_M=480` with `search_ef` up to `131072`;
+  - `pq_M=960` (full-dimensional PQ) with `search_ef` up to `131072`;
+  - additional `pq_M=480` / `pq_rerank_topk_factor=100` rerank run.
+- All raw outputs are in `4_Results/_final_ext4_raw/curator/gist1m/`; the
+  new measured points were appended to the manual gist1m 75p/99p curves
+  without changing the existing manual anchors.
+- Final strict endpoints:
+
+| bucket | Curator | SPANN | DiskIVF |
+|---|---|---|---|
+| gist1m 75p | 0.9988 @ 119.91 ms | 0.9935 @ 288.69 ms | 0.9815 @ 502.02 ms |
+| gist1m 99p | 0.9917 @ 325.50 ms | 0.9917 @ 204.15 ms | 0.9917 @ 486.97 ms |
+
+- Strict 99p recall stops at 0.9917 because the remaining GT misses are exact
+  distance ties, not search-parameter misses.  For example, query 20 returns
+  ID 934904 with exact squared-L2 distance 2.536712, exactly the same as GT
+  ID 146458; queries 628/661/709 return ID 961300 at the same distance as the
+  missed GT ID 708234.  A strict ID-intersection metric therefore cannot
+  distinguish equally valid top-10 sets.  The tie-aware Recall@10 already used
+  for wit would count these returned results as correct.
+## 9. Text wording and content interface (2026-09-23)
+
+- `5_Plot/figure_text_style.json` now contains both numeric style settings and
+  a `content` object for user-adjustable visible strings.
+- Bar-chart y-axis labels now read from this interface:
+  - `bar_memory_ylabel` default `Index Memory`;
+  - `bar_build_time_ylabel` default `Index Build Time (s)`;
+  - `bar_volume_ylabel` default `Index Volume`;
+  - `bar_dataset_xlabel` placeholder `{dataset}`.
+- `5_Plot/paper_style.py` exposes `text_content(key, default)` for future
+  strings; the style guide is `5_Plot/FONT_STYLE_GUIDE.md`.
+- `4_Results/RESULTS_ANALYSIS.md` gist1m notes were corrected: the current
+  gist1m labels use `hierarchical_random` (controlled selectivity tiers,
+  geometry-independent random assignment); the old K-means coupling note no
+  longer applies.

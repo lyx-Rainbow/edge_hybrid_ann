@@ -1,0 +1,18 @@
+{
+  "global_scale": 1.25,
+  "label_scale": 1.0,
+  "tick_scale": 1.1,
+  "offset_scale": 1.1,
+  "offset_font_weight": "bold",
+  "title_scale": 1.0,
+  "legend_scale": 1.0,
+  "label_font_weight": "bold",
+  "tick_font_weight": "bold",
+  "title_font_weight": "bold",
+  "content": {
+    "bar_memory_ylabel": "Index Memory (MB)",
+    "bar_build_time_ylabel": "Index Build Time (s)",
+    "bar_volume_ylabel": "Index Volume (MB)",
+    "bar_dataset_xlabel": "{dataset}"
+  }
+}

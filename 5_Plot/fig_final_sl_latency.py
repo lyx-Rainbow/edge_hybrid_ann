@@ -8,6 +8,7 @@ straight segments between a handful of selected vertices.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -77,8 +78,8 @@ def plot_one(dataset: str, bucket: str):
                       manual=manual)
     LT.style_latency_axis(axis, list(anchors.values()),
                           fontsize=26, tick_fontsize=22)
-    axis.set_title(SL.bucket_selectivity_text(dataset, bucket),
-                   fontsize=24, fontweight="bold", pad=12)
+    PS.set_title(axis, SL.bucket_selectivity_text(dataset, bucket),
+                 fontsize=24, pad=12)
     figure.tight_layout()
     save_figure(figure, f"sl_{dataset}_{bucket}")
     plt.close(figure)
@@ -102,8 +103,8 @@ def plot_dataset_grid(dataset: str):
         LT.style_latency_axis(axis, list(anchors.values()),
                               fontsize=20, tick_fontsize=16,
                               show_ylabel=(index == 0))
-        axis.set_title(SL.bucket_selectivity_text(dataset, bucket),
-                       fontsize=18, fontweight="bold", pad=8)
+        PS.set_title(axis, SL.bucket_selectivity_text(dataset, bucket),
+                     fontsize=18, pad=8)
     figure.tight_layout()
     save_figure(figure, f"sl_{dataset}_grid")
     plt.close(figure)
@@ -119,10 +120,14 @@ def save_legend():
 
 
 def main():
-    PS.apply_style()
-    datasets = [value for value in sys.argv[1:] if not value.startswith("--")]
-    if not datasets:
-        datasets = DATASETS
+    parser = argparse.ArgumentParser()
+    parser.add_argument("datasets", nargs="*", default=None)
+    parser.add_argument("--text-config", default=None)
+    parser.add_argument("--prefilter-inmem", action="store_true")
+    parser.add_argument("--prefilter-external", action="store_true")
+    args = parser.parse_args()
+    PS.apply_style(args.text_config)
+    datasets = args.datasets or DATASETS
     selection = {}
     for dataset in datasets:
         selection[dataset] = {}

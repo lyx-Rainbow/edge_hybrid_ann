@@ -7,4 +7,5 @@ python 5_Plot/fig_final_sl_latency.py
 python 5_Plot/fig_final_cp_latency.py
 python 5_Plot/fig_final_latency_at_recall.py
 python 5_Plot/fig_full_bars.py
+python verify_figure_outputs.py
 python verify_latency_figures.py

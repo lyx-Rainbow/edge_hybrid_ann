@@ -6,6 +6,7 @@ the final SL figures.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -75,10 +76,11 @@ def draw_panel(axis, dataset: str, ptype: str, formula: str,
         axis, list(anchors.values()), fontsize=fontsize,
         tick_fontsize=tick_fontsize, show_ylabel=show_ylabel)
     selectivity = FC.get_case_selectivity(dataset, formula)
-    axis.set_title(
+    PS.set_title(
+        axis,
         f"{dataset} {ptype} ({FC.selectivity_text(selectivity)})",
         fontsize=18 if fontsize < 22 else 24,
-        fontweight="bold", pad=8 if fontsize < 22 else 12)
+        pad=8 if fontsize < 22 else 12)
     return anchors
 
 
@@ -125,7 +127,10 @@ def save_legend():
 
 
 def main():
-    PS.apply_style()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--text-config", default=None)
+    args = parser.parse_args()
+    PS.apply_style(args.text_config)
     selection = {}
     for dataset, ptype, formula in FC.CP_CASES:
         anchors = plot_one(dataset, ptype, formula)
